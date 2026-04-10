@@ -1,0 +1,1651 @@
+"use client";
+
+import { useState, useEffect, useRef, useCallback } from "react";
+import * as THREE from "three";
+
+const BRAIN_REGIONS = [
+  {
+    id: "frontal",
+    name: "Frontal Lobe",
+    description: "Executive function, decision-making, planning, personality, motor control",
+    color: "#FF6B4A",
+    basePos: { x: 0, y: 0.3, z: 0.7 },
+    clusterRadius: 0.35,
+    nodeCount: 18,
+  },
+  {
+    id: "prefrontal",
+    name: "Prefrontal Cortex",
+    description: "Complex planning, social behavior, impulse control, working memory",
+    color: "#FF9F43",
+    basePos: { x: 0, y: 0.5, z: 0.85 },
+    clusterRadius: 0.2,
+    nodeCount: 12,
+  },
+  {
+    id: "parietal",
+    name: "Parietal Lobe",
+    description: "Spatial awareness, sensory integration, navigation, attention",
+    color: "#54A0FF",
+    basePos: { x: 0, y: 0.6, z: -0.1 },
+    clusterRadius: 0.3,
+    nodeCount: 14,
+  },
+  {
+    id: "temporal_left",
+    name: "Temporal Lobe (Left)",
+    description: "Language comprehension, verbal memory, speech processing",
+    color: "#5F27CD",
+    basePos: { x: -0.75, y: -0.1, z: 0.1 },
+    clusterRadius: 0.25,
+    nodeCount: 12,
+  },
+  {
+    id: "temporal_right",
+    name: "Temporal Lobe (Right)",
+    description: "Music perception, face recognition, emotional memory",
+    color: "#A855F7",
+    basePos: { x: 0.75, y: -0.1, z: 0.1 },
+    clusterRadius: 0.25,
+    nodeCount: 12,
+  },
+  {
+    id: "occipital",
+    name: "Occipital Lobe",
+    description: "Visual processing, color recognition, spatial orientation",
+    color: "#00D2D3",
+    basePos: { x: 0, y: 0.2, z: -0.85 },
+    clusterRadius: 0.25,
+    nodeCount: 14,
+  },
+  {
+    id: "cerebellum",
+    name: "Cerebellum",
+    description: "Motor coordination, balance, timing, procedural memory",
+    color: "#10AC84",
+    basePos: { x: 0, y: -0.55, z: -0.7 },
+    clusterRadius: 0.3,
+    nodeCount: 16,
+  },
+  {
+    id: "brainstem",
+    name: "Brain Stem",
+    description: "Breathing, heart rate, consciousness, sleep/wake cycles",
+    color: "#EE5A24",
+    basePos: { x: 0, y: -0.8, z: -0.3 },
+    clusterRadius: 0.15,
+    nodeCount: 8,
+  },
+  {
+    id: "amygdala",
+    name: "Amygdala",
+    description: "Fear processing, emotional responses, threat detection",
+    color: "#ED4C67",
+    basePos: { x: 0, y: -0.2, z: 0.3 },
+    clusterRadius: 0.12,
+    nodeCount: 8,
+  },
+  {
+    id: "hippocampus",
+    name: "Hippocampus",
+    description: "Memory formation, spatial memory, learning, navigation",
+    color: "#F368E0",
+    basePos: { x: 0, y: -0.3, z: 0.15 },
+    clusterRadius: 0.14,
+    nodeCount: 10,
+  },
+  {
+    id: "thalamus",
+    name: "Thalamus",
+    description: "Sensory relay station, attention regulation, consciousness",
+    color: "#FFC312",
+    basePos: { x: 0, y: 0.0, z: 0.0 },
+    clusterRadius: 0.12,
+    nodeCount: 8,
+  },
+  {
+    id: "motor_cortex",
+    name: "Motor Cortex",
+    description: "Voluntary movement initiation, fine motor control",
+    color: "#C4E538",
+    basePos: { x: 0, y: 0.7, z: 0.15 },
+    clusterRadius: 0.22,
+    nodeCount: 12,
+  },
+];
+
+const REGION_GROUPS = [
+  {
+    id: "cognition",
+    label: "Higher Cognition",
+    subtitle: "Thinking, planning, deliberate action",
+    regionIds: ["prefrontal", "frontal", "parietal", "motor_cortex"],
+  },
+  {
+    id: "sensory",
+    label: "Sensory Processing",
+    subtitle: "How the outside world gets in",
+    regionIds: ["occipital", "temporal_left", "temporal_right"],
+  },
+  {
+    id: "limbic",
+    label: "Memory + Emotion",
+    subtitle: "Feeling and remembering",
+    regionIds: ["amygdala", "hippocampus"],
+  },
+  {
+    id: "regulation",
+    label: "Regulation + Relay",
+    subtitle: "Keeping the lights on, routing signals",
+    regionIds: ["thalamus", "cerebellum", "brainstem"],
+  },
+];
+
+function generateClusterNodes(region) {
+  const nodes = [];
+  for (let i = 0; i < region.nodeCount; i++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = region.clusterRadius * (0.3 + Math.random() * 0.7);
+    nodes.push({
+      x: region.basePos.x + r * Math.sin(phi) * Math.cos(theta),
+      y: region.basePos.y + r * Math.sin(phi) * Math.sin(theta),
+      z: region.basePos.z + r * Math.cos(phi),
+      regionId: region.id,
+      pulseOffset: Math.random() * Math.PI * 2,
+      baseSize: 0.015 + Math.random() * 0.012,
+    });
+  }
+  return nodes;
+}
+
+function generateConnections(allNodes) {
+  const connections = [];
+  const regionNodes = {};
+
+  allNodes.forEach((node, i) => {
+    if (!regionNodes[node.regionId]) regionNodes[node.regionId] = [];
+    regionNodes[node.regionId].push(i);
+  });
+
+  Object.values(regionNodes).forEach((indices) => {
+    for (let i = 0; i < indices.length; i++) {
+      for (let j = i + 1; j < indices.length; j++) {
+        if (Math.random() < 0.3) {
+          connections.push([indices[i], indices[j], "intra"]);
+        }
+      }
+    }
+  });
+
+  const regionIds = Object.keys(regionNodes);
+  for (let i = 0; i < regionIds.length; i++) {
+    for (let j = i + 1; j < regionIds.length; j++) {
+      const nodesA = regionNodes[regionIds[i]];
+      const nodesB = regionNodes[regionIds[j]];
+      const connCount = Math.floor(Math.random() * 3) + 1;
+      for (let c = 0; c < connCount; c++) {
+        const a = nodesA[Math.floor(Math.random() * nodesA.length)];
+        const b = nodesB[Math.floor(Math.random() * nodesB.length)];
+        connections.push([a, b, "inter"]);
+      }
+    }
+  }
+
+  return connections;
+}
+
+// Shader that fades opacity based on distance from camera — faces on the near
+// (front) side of the head become nearly transparent, while the far (back)
+// side stays opaque. Produces an X-ray cutaway effect that reveals the brain
+// clusters inside from the camera's current viewpoint.
+const HEAD_VERTEX_SHADER = `
+  varying float vViewZ;
+  void main() {
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    vViewZ = -mvPosition.z;
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`;
+
+const HEAD_FRAGMENT_SHADER = `
+  uniform vec3 uColor;
+  uniform float uNearZ;
+  uniform float uFarZ;
+  uniform float uMinOp;
+  uniform float uMaxOp;
+  varying float vViewZ;
+  void main() {
+    float t = smoothstep(uNearZ, uFarZ, vViewZ);
+    float op = mix(uMinOp, uMaxOp, t);
+    gl_FragColor = vec4(uColor, op);
+  }
+`;
+
+// Build LineSegments vertex pairs tracing the facial features — eye sockets,
+// brow ridge, nose bridge, mouth, and jawline. Coordinates are placed on the
+// front-facing surface of the head so they sit on the face plane.
+function buildFacialLandmarkPairs() {
+  const pairs = [];
+  const addPolyline = (curve) => {
+    for (let i = 0; i < curve.length - 1; i++) {
+      pairs.push(curve[i], curve[i + 1]);
+    }
+  };
+
+  const eyeOval = (cx, cy, cz) => {
+    const pts = [];
+    const segs = 14;
+    for (let i = 0; i <= segs; i++) {
+      const t = (i / segs) * Math.PI * 2;
+      pts.push(
+        new THREE.Vector3(
+          cx + 0.14 * Math.cos(t),
+          cy + 0.055 * Math.sin(t),
+          cz
+        )
+      );
+    }
+    return pts;
+  };
+  addPolyline(eyeOval(-0.34, 0.0, 1.16));
+  addPolyline(eyeOval(0.34, 0.0, 1.16));
+
+  // Two separate eyebrows. Each arches upward in the middle and has tapered
+  // ends; positioned just above the corresponding eye.
+  const brow = (cx, flip) => {
+    const pts = [];
+    const segs = 10;
+    for (let i = 0; i <= segs; i++) {
+      const t = i / segs;
+      // Arc along the x axis with a sin bump for the arch
+      const localX = -0.22 + t * 0.44;
+      const arch = Math.sin(t * Math.PI) * 0.04;
+      const x = cx + (flip ? -localX : localX);
+      const y = 0.14 + arch;
+      const z = 1.14;
+      pts.push(new THREE.Vector3(x, y, z));
+    }
+    return pts;
+  };
+  addPolyline(brow(-0.34, false));
+  addPolyline(brow(0.34, false));
+
+  addPolyline([
+    new THREE.Vector3(0, 0.12, 1.16),
+    new THREE.Vector3(0, 0.02, 1.2),
+    new THREE.Vector3(0, -0.12, 1.26),
+    new THREE.Vector3(0, -0.26, 1.32),
+  ]);
+
+  addPolyline([
+    new THREE.Vector3(-0.08, -0.28, 1.3),
+    new THREE.Vector3(0, -0.32, 1.32),
+    new THREE.Vector3(0.08, -0.28, 1.3),
+  ]);
+
+  addPolyline([
+    new THREE.Vector3(-0.26, -0.55, 1.03),
+    new THREE.Vector3(-0.12, -0.58, 1.06),
+    new THREE.Vector3(0, -0.58, 1.07),
+    new THREE.Vector3(0.12, -0.58, 1.06),
+    new THREE.Vector3(0.26, -0.55, 1.03),
+  ]);
+
+  // Chin/jaw curve — long, low U that runs almost all the way out to the
+  // sides of the head before a short, abrupt ramus angles up to the ear.
+  const jaw = [];
+  const jawPts = [
+    [-0.82, -0.78, 0.42],
+    [-0.66, -0.88, 0.6],
+    [-0.48, -0.94, 0.76],
+    [-0.28, -0.97, 0.86],
+    [-0.1, -0.98, 0.9],
+    [0, -0.98, 0.91],
+    [0.1, -0.98, 0.9],
+    [0.28, -0.97, 0.86],
+    [0.48, -0.94, 0.76],
+    [0.66, -0.88, 0.6],
+    [0.82, -0.78, 0.42],
+  ];
+  for (const [x, y, z] of jawPts) jaw.push(new THREE.Vector3(x, y, z));
+  addPolyline(jaw);
+
+  // Mandibular ramus — short, abrupt angle up from the jaw endpoint to
+  // just below the ear. Only about 20% of the total jaw line length.
+  const ramus = (side) => [
+    new THREE.Vector3(side * 0.82, -0.78, 0.42),
+    new THREE.Vector3(side * 0.88, -0.18, 0.22),
+  ];
+  addPolyline(ramus(-1));
+  addPolyline(ramus(1));
+
+  // Ear crescents — C-shaped curves on the sides of the head. The concave
+  // side bows outward (away from the face) so the bulge points toward the
+  // head center and the opening faces the outer edge.
+  const ear = (side) => {
+    const pts = [];
+    const segs = 12;
+    for (let i = 0; i <= segs; i++) {
+      const t = i / segs;
+      const angle = Math.PI * (0.62 + t * 0.76); // ~112° to ~248°
+      const localX = Math.cos(angle) * 0.09;
+      const y = Math.sin(angle) * 0.16;
+      // Invert the x offset so the middle of the curve bows outward instead
+      // of inward — the concave now opens away from the face.
+      const x = side * 0.98 - side * localX;
+      const z = 0.12;
+      pts.push(new THREE.Vector3(x, y, z));
+    }
+    return pts;
+  };
+  addPolyline(ear(-1));
+  addPolyline(ear(1));
+
+  // Base-of-skull chevron — very shallow V behind the ears, bottom point
+  // at center, tails angling slightly upward and out toward the ears but
+  // stopping well short of them.
+  addPolyline([
+    new THREE.Vector3(-0.48, -0.52, -0.35),
+    new THREE.Vector3(0, -0.6, -0.5),
+    new THREE.Vector3(0.48, -0.52, -0.35),
+  ]);
+
+  // Scalp-to-occiput contour line. Single midline arc from the hairline
+  // above the brow, up and over the crown, down to the base of the skull.
+  const scalpContour = () => {
+    const pts = [];
+    const segs = 28;
+    // Stop the arc before the full π so the back endpoint lands higher/
+    // closer to the skull rather than extending all the way to the base.
+    const tMax = 0.82;
+    for (let i = 0; i <= segs; i++) {
+      const t = (i / segs) * tMax;
+      const angle = Math.PI * t;
+      const y = 0.22 + Math.sin(angle) * 1.25 - t * 0.75;
+      const cosA = Math.cos(angle);
+      const z = (cosA >= 0 ? 1.3 : 0.85) * cosA - 0.1;
+      pts.push(new THREE.Vector3(0, y, z));
+    }
+    return pts;
+  };
+  addPolyline(scalpContour());
+
+  return pairs;
+}
+
+const EXAMPLE_SCENARIOS = [
+  "Someone throws a baseball at me",
+  "I smell fresh coffee brewing in the morning",
+  "I hear my favorite song from childhood",
+  "I'm solving a complex math problem",
+  "I touch a hot stove by accident",
+  "I'm remembering my first day of school",
+  "I see a spider on the wall",
+  "I'm playing piano from sheet music",
+  "I'm having a deep conversation with a friend",
+  "I taste something unexpectedly sour",
+  "I lock eyes with a stranger across a crowded room",
+  "I'm caught in a sudden thunderstorm without an umbrella",
+  "I'm lost in a city I've never visited before",
+  "I hear my name called in a quiet library",
+  "I'm riding a roller coaster as it crests the first drop",
+  "I'm reading a novel I can't put down",
+  "I'm giving a presentation to a room of executives",
+  "I catch a whiff of a perfume my grandmother used to wear",
+  "I'm meditating in complete silence",
+  "I watch the sunset paint the sky orange and pink",
+  "I'm trying to remember where I left my keys",
+  "I feel a mosquito bite on my arm",
+  "I'm learning to ride a bike for the first time",
+  "I walk barefoot through wet grass",
+  "I'm holding a newborn baby",
+  "I hear a car horn blare right behind me",
+  "I'm dancing alone in my kitchen",
+  "I taste my favorite childhood meal again",
+  "I'm doing a difficult yoga pose and losing balance",
+  "I'm writing a letter to someone I miss",
+];
+
+export default function BrainViz() {
+  const mountRef = useRef(null);
+  const sceneRef = useRef(null);
+  const cameraRef = useRef(null);
+  const rendererRef = useRef(null);
+  const frameRef = useRef(null);
+  const nodesRef = useRef([]);
+  const connectionsRef = useRef([]);
+  const nodeMeshesRef = useRef([]);
+  const connectionLinesRef = useRef([]);
+  const headPointsRef = useRef(null);
+  const timeRef = useRef(0);
+  const isDragging = useRef(false);
+  const lastMouse = useRef({ x: 0, y: 0 });
+  const rotation = useRef({ x: 0.3, y: 0 });
+  const targetRotation = useRef({ x: 0.3, y: 0 });
+  const brainGroupRef = useRef(null);
+
+  const [inputText, setInputText] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [activations, setActivations] = useState({});
+  const [activationSteps, setActivationSteps] = useState([]);
+  const [currentStep, setCurrentStep] = useState(-1);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [scenarioText, setScenarioText] = useState("");
+  const [callouts, setCallouts] = useState([]);
+  const [showLegend, setShowLegend] = useState(true);
+  const [stepDuration, setStepDuration] = useState(3000);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [groupOverride, setGroupOverride] = useState({});
+  const [processingDots, setProcessingDots] = useState(0);
+  const tryScrollRef = useRef(null);
+  const [tryScrollState, setTryScrollState] = useState({ canLeft: false, canRight: true });
+  const tryDragRef = useRef({ isDown: false, startX: 0, startScroll: 0, didDrag: false });
+
+  useEffect(() => {
+    if (!isProcessing) {
+      setProcessingDots(0);
+      return;
+    }
+    const id = setInterval(() => {
+      setProcessingDots((d) => (d + 1) % 4);
+    }, 400);
+    return () => clearInterval(id);
+  }, [isProcessing]);
+
+  const updateTryScrollState = useCallback(() => {
+    const el = tryScrollRef.current;
+    if (!el) return;
+    const canLeft = el.scrollLeft > 4;
+    const canRight = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+    setTryScrollState({ canLeft, canRight });
+  }, []);
+
+  const scrollTry = (direction) => {
+    const el = tryScrollRef.current;
+    if (!el) return;
+    const delta = el.clientWidth * 0.7 * direction;
+    el.scrollBy({ left: delta, behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    updateTryScrollState();
+    const el = tryScrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", updateTryScrollState);
+    window.addEventListener("resize", updateTryScrollState);
+    return () => {
+      el.removeEventListener("scroll", updateTryScrollState);
+      window.removeEventListener("resize", updateTryScrollState);
+    };
+  }, [updateTryScrollState]);
+
+  const playTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (!mountRef.current) return;
+
+    const width = mountRef.current.clientWidth;
+    const height = mountRef.current.clientHeight;
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x0a0a12, 0.15);
+    sceneRef.current = scene;
+
+    const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100);
+    camera.position.set(0, 0.3, 3.0);
+    camera.lookAt(0, 0, 0);
+    cameraRef.current = camera;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x0a0a12, 1);
+    mountRef.current.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
+
+    const brainGroup = new THREE.Group();
+    scene.add(brainGroup);
+    brainGroupRef.current = brainGroup;
+
+    // Brain sits inside a sub-group offset back (-z) and up (+y) relative to
+    // the head, so clusters sit higher in the skull and away from the face.
+    const brainContentGroup = new THREE.Group();
+    brainContentGroup.position.set(0, 0.34, -0.4);
+    brainContentGroup.scale.setScalar(0.9);
+    brainGroup.add(brainContentGroup);
+
+    const ambient = new THREE.AmbientLight(0x334466, 0.5);
+    scene.add(ambient);
+
+    const allNodes = [];
+    BRAIN_REGIONS.forEach((region) => {
+      const clusterNodes = generateClusterNodes(region);
+      allNodes.push(...clusterNodes);
+    });
+    nodesRef.current = allNodes;
+
+    const conns = generateConnections(allNodes);
+    connectionsRef.current = conns;
+
+    const nodeMeshes = [];
+    allNodes.forEach((node) => {
+      const region = BRAIN_REGIONS.find((r) => r.id === node.regionId);
+      const geo = new THREE.SphereGeometry(node.baseSize, 8, 8);
+      const mat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(region.color),
+        transparent: true,
+        opacity: 0.4,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(node.x, node.y, node.z);
+      brainContentGroup.add(mesh);
+      nodeMeshes.push(mesh);
+    });
+    nodeMeshesRef.current = nodeMeshes;
+
+    const connectionLines = [];
+    conns.forEach(([a, b, type]) => {
+      const geo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(allNodes[a].x, allNodes[a].y, allNodes[a].z),
+        new THREE.Vector3(allNodes[b].x, allNodes[b].y, allNodes[b].z),
+      ]);
+      const mat = new THREE.LineBasicMaterial({
+        color: 0x334455,
+        transparent: true,
+        opacity: type === "intra" ? 0.04 : 0.02,
+      });
+      const line = new THREE.Line(geo, mat);
+      brainContentGroup.add(line);
+      connectionLines.push({ line, a, b, type });
+    });
+    connectionLinesRef.current = connectionLines;
+
+    // Head shell and wireframe overlay are intentionally disabled — only the
+    // facial landmark lines (eyes, brows, nose, mouth, jaw, ears) render.
+    headPointsRef.current = null;
+
+    // Facial landmarks — eye sockets, brow, nose bridge, mouth, jawline.
+    // Uses an inverted opacity ramp (high at near, low at far) so the
+    // landmarks are visible on whichever side of the head faces the camera
+    // and fade away on the side turned away.
+    const landmarkPairs = buildFacialLandmarkPairs();
+    const landmarkGeo = new THREE.BufferGeometry().setFromPoints(landmarkPairs);
+    const landmarkMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uColor: { value: new THREE.Color(0xaecbe8) },
+        uNearZ: { value: 1.8 },
+        uFarZ: { value: 4.2 },
+        uMinOp: { value: 0.4 },
+        uMaxOp: { value: 0.9 },
+      },
+      vertexShader: HEAD_VERTEX_SHADER,
+      fragmentShader: HEAD_FRAGMENT_SHADER,
+      transparent: true,
+      depthWrite: false,
+    });
+    const landmarkLines = new THREE.LineSegments(landmarkGeo, landmarkMat);
+    landmarkLines.renderOrder = 5;
+    landmarkLines.position.set(0, -0.12, -0.65);
+    landmarkLines.scale.setScalar(1.344);
+    brainGroup.add(landmarkLines);
+
+    const handleResize = () => {
+      if (!mountRef.current) return;
+      const w = mountRef.current.clientWidth;
+      const h = mountRef.current.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    };
+    window.addEventListener("resize", handleResize);
+
+    const mountEl = mountRef.current;
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      cancelAnimationFrame(frameRef.current);
+      if (mountEl && renderer.domElement && mountEl.contains(renderer.domElement)) {
+        mountEl.removeChild(renderer.domElement);
+      }
+      renderer.dispose();
+    };
+  }, []);
+
+  useEffect(() => {
+    const animate = () => {
+      frameRef.current = requestAnimationFrame(animate);
+      timeRef.current += 0.016;
+      const t = timeRef.current;
+
+      if (!brainGroupRef.current || !rendererRef.current || !sceneRef.current || !cameraRef.current) return;
+
+      rotation.current.x += (targetRotation.current.x - rotation.current.x) * 0.08;
+      rotation.current.y += (targetRotation.current.y - rotation.current.y) * 0.08;
+
+      if (!isDragging.current) {
+        targetRotation.current.y += 0.002;
+      }
+
+      brainGroupRef.current.rotation.x = rotation.current.x;
+      brainGroupRef.current.rotation.y = rotation.current.y;
+
+      const nodes = nodesRef.current;
+      const meshes = nodeMeshesRef.current;
+
+      meshes.forEach((mesh, i) => {
+        const node = nodes[i];
+        const activation = activations[node.regionId] || 0;
+
+        const baseBrightness = 0.35;
+        const activeBrightness = 0.75 + activation * 0.25;
+        const pulse = Math.sin(t * 3 + node.pulseOffset) * 0.5 + 0.5;
+        const brightness = activation > 0
+          ? activeBrightness + pulse * activation * 0.2
+          : baseBrightness + pulse * 0.1;
+
+        mesh.material.opacity = brightness;
+
+        const baseScale = 1;
+        const activeScale = 1 + activation * 0.8 + pulse * activation * 0.4;
+        const scale = activation > 0 ? activeScale : baseScale;
+        mesh.scale.setScalar(scale);
+      });
+
+      connectionLinesRef.current.forEach(({ line, a, b, type }) => {
+        const regionA = nodes[a].regionId;
+        const regionB = nodes[b].regionId;
+        const actA = activations[regionA] || 0;
+        const actB = activations[regionB] || 0;
+        const avgAct = (actA + actB) / 2;
+
+        if (avgAct > 0) {
+          const regionObjA = BRAIN_REGIONS.find((r) => r.id === regionA);
+          const regionObjB = BRAIN_REGIONS.find((r) => r.id === regionB);
+          const color = new THREE.Color(regionObjA.color).lerp(
+            new THREE.Color(regionObjB.color),
+            0.5
+          );
+          line.material.color = color;
+          line.material.opacity = 0.25 + avgAct * 0.6;
+        } else {
+          line.material.color = new THREE.Color(0x6a7a90);
+          line.material.opacity = type === "intra" ? 0.2 : 0.12;
+        }
+      });
+
+      rendererRef.current.render(sceneRef.current, cameraRef.current);
+    };
+
+    animate();
+
+    return () => cancelAnimationFrame(frameRef.current);
+  }, [activations]);
+
+  const handlePointerDown = useCallback((e) => {
+    isDragging.current = true;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    lastMouse.current = { x: clientX, y: clientY };
+  }, []);
+
+  const handlePointerMove = useCallback((e) => {
+    if (!isDragging.current) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const dx = clientX - lastMouse.current.x;
+    const dy = clientY - lastMouse.current.y;
+    targetRotation.current.y += dx * 0.005;
+    targetRotation.current.x += dy * 0.005;
+    targetRotation.current.x = Math.max(-1.2, Math.min(1.2, targetRotation.current.x));
+    lastMouse.current = { x: clientX, y: clientY };
+  }, []);
+
+  const handlePointerUp = useCallback(() => {
+    isDragging.current = false;
+  }, []);
+
+  const processScenario = async () => {
+    if (!inputText.trim() || isProcessing) return;
+
+    setIsProcessing(true);
+    setErrorMsg("");
+    setScenarioText(inputText.trim());
+    setActivations({});
+    setActivationSteps([]);
+    setCurrentStep(-1);
+    setIsPlaying(false);
+    setCallouts([]);
+    if (playTimerRef.current) clearTimeout(playTimerRef.current);
+
+    try {
+      const response = await fetch("/api/process-scenario", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scenario: inputText.trim() }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setErrorMsg(data.error || `Error ${response.status}`);
+        setIsProcessing(false);
+        return;
+      }
+
+      const { steps } = await response.json();
+      setActivationSteps(steps);
+      setCurrentStep(0);
+
+      if (steps.length > 0) {
+        const regionActivations = {};
+        Object.entries(steps[0].regions).forEach(([id, data]) => {
+          regionActivations[id] = data.intensity;
+        });
+        setActivations(regionActivations);
+        setCallouts(
+          Object.entries(steps[0].regions).map(([id, data]) => ({
+            regionId: id,
+            reason: data.reason,
+            intensity: data.intensity,
+          }))
+        );
+      }
+    } catch (err) {
+      setErrorMsg("Network error");
+    }
+
+    setIsProcessing(false);
+  };
+
+  const goToStep = useCallback(
+    (stepIndex) => {
+      if (stepIndex < 0 || stepIndex >= activationSteps.length) return;
+      setCurrentStep(stepIndex);
+      const step = activationSteps[stepIndex];
+      const regionActivations = {};
+      Object.entries(step.regions).forEach(([id, data]) => {
+        regionActivations[id] = data.intensity;
+      });
+      setActivations(regionActivations);
+      setCallouts(
+        Object.entries(step.regions).map(([id, data]) => ({
+          regionId: id,
+          reason: data.reason,
+          intensity: data.intensity,
+        }))
+      );
+    },
+    [activationSteps]
+  );
+
+  useEffect(() => {
+    if (!isPlaying || activationSteps.length === 0) return;
+
+    const duration = stepDuration / playbackSpeed;
+    playTimerRef.current = setTimeout(() => {
+      const nextStep = currentStep + 1;
+      if (nextStep < activationSteps.length) {
+        goToStep(nextStep);
+      } else {
+        setIsPlaying(false);
+      }
+    }, duration);
+
+    return () => clearTimeout(playTimerRef.current);
+  }, [isPlaying, currentStep, activationSteps, playbackSpeed, stepDuration, goToStep]);
+
+  const togglePlay = () => {
+    if (currentStep >= activationSteps.length - 1) {
+      goToStep(0);
+      setIsPlaying(true);
+    } else {
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const fontStack = "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  const displayFont = "var(--font-instrument-serif), Georgia, serif";
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        height: "100vh",
+        background: "#0a0a12",
+        color: "#e8ecf2",
+        fontFamily: fontStack,
+        fontSize: "13px",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        position: "relative",
+      }}
+    >
+      <div
+        style={{
+          padding: "16px 24px",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "baseline", gap: "20px" }}>
+          <span
+            style={{
+              fontFamily: displayFont,
+              fontSize: "56px",
+              color: "#ffffff",
+              letterSpacing: "-0.02em",
+              lineHeight: 1,
+            }}
+          >
+            Neural Cascade
+          </span>
+          <span style={{ color: "#e8ecf2", fontSize: "15px", letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 500 }}>
+            Brain Activity Visualizer
+          </span>
+        </div>
+        <button
+          onClick={() => setShowLegend(!showLegend)}
+          style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            color: "#c0c8d8",
+            padding: "4px 12px",
+            borderRadius: "4px",
+            cursor: "pointer",
+            fontFamily: fontStack,
+            fontSize: "14px",
+          }}
+        >
+          {showLegend ? "HIDE" : "SHOW"} LEGEND
+        </button>
+      </div>
+
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+        <div style={{ flex: 1, position: "relative" }}>
+          <div
+            ref={mountRef}
+            style={{ width: "100%", height: "100%", cursor: "grab" }}
+            onMouseDown={handlePointerDown}
+            onMouseMove={handlePointerMove}
+            onMouseUp={handlePointerUp}
+            onMouseLeave={handlePointerUp}
+            onTouchStart={handlePointerDown}
+            onTouchMove={handlePointerMove}
+            onTouchEnd={handlePointerUp}
+          />
+
+          {(scenarioText || isProcessing) && (
+            <div
+              style={{
+                position: "absolute",
+                top: "0",
+                left: "0",
+                right: "0",
+                background: "#ffffff",
+                borderBottom: "1px solid rgba(255,255,255,0.15)",
+                padding: "18px 32px",
+                display: "flex",
+                alignItems: "center",
+                gap: "20px",
+                zIndex: 10,
+              }}
+            >
+              <span
+                style={{
+                  color: "#0a0a12",
+                  fontSize: "11px",
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  fontWeight: 700,
+                  flexShrink: 0,
+                  opacity: 0.55,
+                }}
+              >
+                SCENARIO
+              </span>
+              <div
+                style={{
+                  color: "#0a0a12",
+                  fontSize: "20px",
+                  fontWeight: 500,
+                  lineHeight: 1.3,
+                  flex: 1,
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                {scenarioText || "—"}
+              </div>
+              {isProcessing && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    flexShrink: 0,
+                    paddingLeft: "16px",
+                    borderLeft: "1px solid rgba(10,10,18,0.15)",
+                  }}
+                >
+                  <span
+                    style={{
+                      color: "#0a0a12",
+                      fontSize: "11px",
+                      letterSpacing: "0.14em",
+                      textTransform: "uppercase",
+                      fontWeight: 700,
+                      opacity: 0.7,
+                    }}
+                  >
+                    PROCESSING{".".repeat(processingDots)}
+                  </span>
+                  <span
+                    style={{
+                      color: "#0a0a12",
+                      fontSize: "11px",
+                      opacity: 0.45,
+                      fontWeight: 500,
+                    }}
+                  >
+                    (approx. 15 sec)
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {callouts.length > 0 && (
+            <div
+              className="no-scrollbar"
+              style={{
+                position: "absolute",
+                bottom: "0",
+                left: "0",
+                right: "0",
+                padding: "12px 18px",
+                display: "flex",
+                gap: "8px",
+                overflowX: "auto",
+                background: "linear-gradient(to top, rgba(10,10,18,0.95) 40%, rgba(10,10,18,0) 100%)",
+              }}
+            >
+              {callouts
+                .filter((c) => c.intensity > 0.3)
+                .map((callout, i) => {
+                  const region = BRAIN_REGIONS.find((r) => r.id === callout.regionId);
+                  if (!region) return null;
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        background: "rgba(10,10,18,0.92)",
+                        border: `1px solid ${region.color}55`,
+                        borderRadius: "6px",
+                        padding: "8px 12px",
+                        minWidth: "220px",
+                        maxWidth: "260px",
+                        backdropFilter: "blur(8px)",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                        <div
+                          style={{
+                            width: "8px",
+                            height: "8px",
+                            borderRadius: "50%",
+                            background: region.color,
+                            boxShadow: `0 0 8px ${region.color}`,
+                          }}
+                        />
+                        <span style={{ color: region.color, fontSize: "12px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                          {region.name}
+                        </span>
+                        <span
+                          style={{
+                            color: "#ffffff",
+                            fontSize: "13px",
+                            marginLeft: "auto",
+                            fontWeight: 700,
+                            lineHeight: 1,
+                          }}
+                          aria-label="active"
+                        >
+                          ✓
+                        </span>
+                        <span style={{ color: "#c0c8d8", fontSize: "12px", fontWeight: 500 }}>
+                          {Math.round(callout.intensity * 100)}%
+                        </span>
+                      </div>
+                      <div style={{ color: "#d0d7e2", fontSize: "13px", lineHeight: 1.4 }}>
+                        {callout.reason}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+
+          {activationSteps.length > 0 && currentStep >= 0 && (
+            <div
+              style={{
+                position: "absolute",
+                top: "80px",
+                left: "16px",
+                background: "rgba(10,10,18,0.85)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: "6px",
+                padding: "10px 14px",
+                maxWidth: "280px",
+                backdropFilter: "blur(8px)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                <span style={{ color: "#FFC312", fontSize: "14px", fontWeight: 500 }}>
+                  {activationSteps[currentStep]?.time_label}
+                </span>
+                <span style={{ color: "#8a95a8", fontSize: "13px" }}>
+                  Step {currentStep + 1}/{activationSteps.length}
+                </span>
+              </div>
+              <div style={{ color: "#e8ecf2", fontSize: "14px", lineHeight: 1.45 }}>
+                {activationSteps[currentStep]?.description}
+              </div>
+            </div>
+          )}
+
+          {errorMsg && (
+            <div
+              style={{
+                position: "absolute",
+                top: "16px",
+                right: "16px",
+                background: "rgba(237,76,103,0.15)",
+                border: "1px solid rgba(237,76,103,0.3)",
+                borderRadius: "6px",
+                padding: "8px 12px",
+                color: "#ED4C67",
+                fontSize: "13px",
+                maxWidth: "280px",
+              }}
+            >
+              {errorMsg}
+            </div>
+          )}
+        </div>
+
+        {showLegend && (
+          <div
+            className="thin-scroll"
+            style={{
+              width: "340px",
+              borderRight: "1px solid rgba(255,255,255,0.06)",
+              padding: "20px 18px",
+              flexShrink: 0,
+              order: -1,
+            }}
+          >
+            {REGION_GROUPS.map((group) => {
+              const groupRegions = group.regionIds
+                .map((id) => BRAIN_REGIONS.find((r) => r.id === id))
+                .filter(Boolean);
+              const groupAnyActive = groupRegions.some(
+                (r) => (activations[r.id] || 0) > 0
+              );
+              const isExpanded =
+                group.id in groupOverride
+                  ? groupOverride[group.id]
+                  : groupAnyActive;
+
+              const toggleGroup = () => {
+                setGroupOverride((prev) => ({
+                  ...prev,
+                  [group.id]: !isExpanded,
+                }));
+              };
+
+              return (
+                <div
+                  key={group.id}
+                  style={{
+                    marginBottom: "12px",
+                    background: groupAnyActive
+                      ? "rgba(255,255,255,0.06)"
+                      : "rgba(255,255,255,0.025)",
+                    border: `1px solid ${
+                      groupAnyActive
+                        ? "rgba(255,255,255,0.14)"
+                        : "rgba(255,255,255,0.07)"
+                    }`,
+                    borderRadius: "8px",
+                    overflow: "hidden",
+                    transition: "all 0.3s ease",
+                  }}
+                >
+                  <button
+                    onClick={toggleGroup}
+                    style={{
+                      width: "100%",
+                      background: "transparent",
+                      border: "none",
+                      padding: "14px 14px 14px 8px",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      fontFamily: "inherit",
+                      display: "block",
+                      color: "inherit",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: "18px",
+                          height: "18px",
+                          display: "inline-block",
+                          position: "relative",
+                          flexShrink: 0,
+                          transform: isExpanded
+                            ? "rotate(90deg)"
+                            : "rotate(0deg)",
+                          transformOrigin: "center center",
+                          transition: "transform 0.2s ease",
+                        }}
+                        aria-hidden="true"
+                      >
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: "50%",
+                            left: "50%",
+                            width: 0,
+                            height: 0,
+                            marginTop: "-8px",
+                            marginLeft: "-5px",
+                            borderTop: "8px solid transparent",
+                            borderBottom: "8px solid transparent",
+                            borderLeft: "11px solid #e0e4ea",
+                          }}
+                        />
+                      </span>
+                      <span
+                        style={{
+                          color: groupAnyActive ? "#ffffff" : "#f0f3f8",
+                          fontSize: "17px",
+                          fontWeight: 600,
+                          letterSpacing: "-0.01em",
+                          flex: 1,
+                        }}
+                      >
+                        {group.label}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        color: "#c0c8d8",
+                        fontSize: "13px",
+                        marginTop: "4px",
+                        marginLeft: "24px",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {group.subtitle}
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "4px",
+                        marginTop: "10px",
+                        marginLeft: "24px",
+                      }}
+                    >
+                      {groupRegions.map((region) => {
+                        const act = activations[region.id] || 0;
+                        return (
+                          <div
+                            key={region.id}
+                            title={region.name}
+                            style={{
+                              width: "52px",
+                              height: "10px",
+                              borderRadius: "2px",
+                              background: region.color,
+                              opacity: act > 0 ? 1 : 0.65,
+                              boxShadow: act > 0
+                                ? `0 0 10px ${region.color}`
+                                : "none",
+                              transition: "all 0.5s ease",
+                              flexShrink: 0,
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                        padding: "4px 14px 14px 32px",
+                      }}
+                    >
+                      {groupRegions.map((region) => {
+                        const act = activations[region.id] || 0;
+                        return (
+                          <div
+                            key={region.id}
+                            style={{
+                              padding: "10px 12px",
+                              borderRadius: "4px",
+                              background: act > 0
+                                ? `${region.color}18`
+                                : "rgba(255,255,255,0.02)",
+                              border: `1px solid ${
+                                act > 0
+                                  ? region.color + "55"
+                                  : "rgba(255,255,255,0.05)"
+                              }`,
+                              transition: "all 0.5s ease",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: "10px",
+                                  height: "10px",
+                                  borderRadius: "50%",
+                                  background: region.color,
+                                  opacity: act > 0 ? 0.85 + act * 0.15 : 0.55,
+                                  boxShadow: act > 0
+                                    ? `0 0 10px ${region.color}`
+                                    : "none",
+                                  transition: "all 0.5s ease",
+                                  flexShrink: 0,
+                                }}
+                              />
+                              <span
+                                style={{
+                                  color: act > 0 ? region.color : "#e0e4ea",
+                                  fontSize: "14px",
+                                  fontWeight: 500,
+                                  transition: "color 0.5s ease",
+                                  lineHeight: 1.2,
+                                }}
+                              >
+                                {region.name}
+                              </span>
+                              {act > 0 && (
+                                <div
+                                  style={{
+                                    marginLeft: "auto",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      color: "#ffffff",
+                                      fontSize: "13px",
+                                      fontWeight: 700,
+                                      lineHeight: 1,
+                                    }}
+                                    aria-hidden="true"
+                                  >
+                                    ✓
+                                  </span>
+                                  <span
+                                    style={{
+                                      color: "#ffffff",
+                                      fontSize: "10px",
+                                      fontWeight: 600,
+                                      letterSpacing: "0.12em",
+                                      textTransform: "uppercase",
+                                    }}
+                                  >
+                                    ACTIVE
+                                  </span>
+                                  <span
+                                    style={{
+                                      color: "#c0c8d8",
+                                      fontSize: "12px",
+                                      fontWeight: 500,
+                                    }}
+                                  >
+                                    {Math.round(act * 100)}%
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <div
+                              style={{
+                                color: "#b0b8c8",
+                                fontSize: "13px",
+                                marginTop: "5px",
+                                lineHeight: 1.4,
+                                paddingLeft: "18px",
+                              }}
+                            >
+                              {region.description}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div
+        style={{
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+          padding: "12px 24px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "10px",
+          flexShrink: 0,
+          background: "rgba(10,10,18,0.95)",
+        }}
+      >
+        {activationSteps.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <button
+              onClick={togglePlay}
+              style={{
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                color: "#e0e4ea",
+                padding: "6px 14px",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontFamily: fontStack,
+                fontSize: "13px",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              {isPlaying ? "Pause" : "Play"}
+            </button>
+
+            <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+              {activationSteps.map((step, i) => (
+                <button
+                  key={i}
+                  onClick={() => {
+                    setIsPlaying(false);
+                    goToStep(i);
+                  }}
+                  style={{
+                    width: i === currentStep ? "24px" : "8px",
+                    height: "8px",
+                    borderRadius: "4px",
+                    background: i === currentStep ? "#FFC312" : i < currentStep ? "rgba(255,195,18,0.3)" : "rgba(255,255,255,0.1)",
+                    border: "none",
+                    cursor: "pointer",
+                    transition: "all 0.3s ease",
+                    padding: 0,
+                  }}
+                  title={step.time_label}
+                />
+              ))}
+            </div>
+
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ color: "#8a95a8", fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                Speed
+              </span>
+              {[0.5, 1, 2, 4].map((speed) => (
+                <button
+                  key={speed}
+                  onClick={() => setPlaybackSpeed(speed)}
+                  style={{
+                    background: playbackSpeed === speed ? "rgba(255,195,18,0.15)" : "transparent",
+                    border: `1px solid ${playbackSpeed === speed ? "rgba(255,195,18,0.3)" : "rgba(255,255,255,0.06)"}`,
+                    color: playbackSpeed === speed ? "#FFC312" : "#a5adbd",
+                    padding: "2px 8px",
+                    borderRadius: "3px",
+                    cursor: "pointer",
+                    fontFamily: fontStack,
+                    fontSize: "14px",
+                  }}
+                >
+                  {speed}x
+                </button>
+              ))}
+
+              <span style={{ color: "#8a95a8", fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.08em", marginLeft: "8px" }}>
+                Duration
+              </span>
+              {[1500, 3000, 5000, 8000].map((dur) => (
+                <button
+                  key={dur}
+                  onClick={() => setStepDuration(dur)}
+                  style={{
+                    background: stepDuration === dur ? "rgba(84,160,255,0.15)" : "transparent",
+                    border: `1px solid ${stepDuration === dur ? "rgba(84,160,255,0.3)" : "rgba(255,255,255,0.06)"}`,
+                    color: stepDuration === dur ? "#54A0FF" : "#a5adbd",
+                    padding: "2px 8px",
+                    borderRadius: "3px",
+                    cursor: "pointer",
+                    fontFamily: fontStack,
+                    fontSize: "14px",
+                  }}
+                >
+                  {dur / 1000}s
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <div style={{ position: "relative", flex: 1 }}>
+            <input
+              type="text"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && processScenario()}
+              placeholder="Describe a scenario... e.g. 'Someone throws a baseball at me'"
+              style={{
+                width: "100%",
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: "6px",
+                padding: "10px 14px",
+                color: "#e0e4ea",
+                fontFamily: fontStack,
+                fontSize: "14px",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+          <button
+            onClick={processScenario}
+            disabled={isProcessing || !inputText.trim()}
+            style={{
+              background: isProcessing ? "rgba(255,195,18,0.1)" : "rgba(255,195,18,0.15)",
+              border: "1px solid rgba(255,195,18,0.3)",
+              color: isProcessing ? "#a5adbd" : "#FFC312",
+              padding: "10px 20px",
+              borderRadius: "6px",
+              cursor: isProcessing ? "default" : "pointer",
+              fontFamily: fontStack,
+              fontSize: "13px",
+              fontWeight: 500,
+              letterSpacing: "0.05em",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {isProcessing ? "PROCESSING..." : "ACTIVATE"}
+          </button>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            paddingLeft: "14px",
+          }}
+        >
+          <span
+            style={{
+              color: "#c0c8d8",
+              fontSize: "13px",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              flexShrink: 0,
+              fontWeight: 500,
+            }}
+          >
+            TRY
+          </span>
+          <button
+            onClick={() => scrollTry(-1)}
+            disabled={!tryScrollState.canLeft}
+            aria-label="Scroll scenarios left"
+            style={{
+              background: "transparent",
+              border: "1px solid rgba(255,255,255,0.08)",
+              color: tryScrollState.canLeft ? "#e0e4ea" : "#4a5568",
+              width: "26px",
+              height: "26px",
+              borderRadius: "50%",
+              cursor: tryScrollState.canLeft ? "pointer" : "default",
+              fontFamily: fontStack,
+              fontSize: "16px",
+              lineHeight: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+              flexShrink: 0,
+              opacity: tryScrollState.canLeft ? 1 : 0.4,
+              transition: "all 0.2s ease",
+            }}
+          >
+            ‹
+          </button>
+          <div
+            ref={tryScrollRef}
+            className="no-scrollbar"
+            onMouseDown={(e) => {
+              const el = tryScrollRef.current;
+              if (!el) return;
+              tryDragRef.current = {
+                isDown: true,
+                startX: e.pageX,
+                startScroll: el.scrollLeft,
+                didDrag: false,
+              };
+              el.style.cursor = "grabbing";
+            }}
+            onMouseMove={(e) => {
+              const state = tryDragRef.current;
+              if (!state.isDown) return;
+              const el = tryScrollRef.current;
+              if (!el) return;
+              const dx = e.pageX - state.startX;
+              if (Math.abs(dx) > 4) state.didDrag = true;
+              el.scrollLeft = state.startScroll - dx;
+            }}
+            onMouseUp={() => {
+              tryDragRef.current.isDown = false;
+              const el = tryScrollRef.current;
+              if (el) el.style.cursor = "grab";
+            }}
+            onMouseLeave={() => {
+              tryDragRef.current.isDown = false;
+              const el = tryScrollRef.current;
+              if (el) el.style.cursor = "grab";
+            }}
+            style={{
+              overflowX: "auto",
+              display: "flex",
+              gap: "6px",
+              flex: 1,
+              scrollBehavior: "auto",
+              cursor: "grab",
+              userSelect: "none",
+            }}
+          >
+            {EXAMPLE_SCENARIOS.map((scenario, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  if (tryDragRef.current.didDrag) return;
+                  setInputText(scenario);
+                }}
+                style={{
+                  background: "transparent",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "#c0c8d8",
+                  padding: "4px 12px",
+                  borderRadius: "14px",
+                  cursor: "pointer",
+                  fontFamily: fontStack,
+                  fontSize: "13px",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  userSelect: "none",
+                }}
+                draggable={false}
+              >
+                {scenario}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => scrollTry(1)}
+            disabled={!tryScrollState.canRight}
+            aria-label="Scroll scenarios right"
+            style={{
+              background: "transparent",
+              border: "1px solid rgba(255,255,255,0.08)",
+              color: tryScrollState.canRight ? "#e0e4ea" : "#4a5568",
+              width: "26px",
+              height: "26px",
+              borderRadius: "50%",
+              cursor: tryScrollState.canRight ? "pointer" : "default",
+              fontFamily: fontStack,
+              fontSize: "16px",
+              lineHeight: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+              flexShrink: 0,
+              opacity: tryScrollState.canRight ? 1 : 0.4,
+              transition: "all 0.2s ease",
+            }}
+          >
+            ›
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
