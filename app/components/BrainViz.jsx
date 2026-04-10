@@ -141,6 +141,158 @@ const REGION_GROUPS = [
   },
 ];
 
+// Modifiers alter the brain's resting state and how it responds to scenarios.
+// Only one can be active at a time. baselineOffsets add resting glow to
+// regions; regionMultipliers scale scenario activations on top of baseline.
+const MODIFIERS = [
+  {
+    id: "caffeine",
+    name: "Caffeine",
+    shortName: "Caffeine",
+    description:
+      "Adenosine blocked, norepinephrine up. Alert, faster, more focused.",
+    color: "#22FFA0",
+    baselineOffsets: {
+      prefrontal: 0.2,
+      frontal: 0.15,
+      parietal: 0.1,
+      temporal_left: 0.08,
+      temporal_right: 0.08,
+      thalamus: 0.15,
+      brainstem: 0.12,
+      motor_cortex: 0.08,
+      amygdala: 0.05,
+      hippocampus: 0.05,
+      occipital: 0.05,
+      cerebellum: 0.05,
+    },
+    regionMultipliers: {
+      prefrontal: 1.3,
+      frontal: 1.25,
+      parietal: 1.15,
+      temporal_left: 1.1,
+      temporal_right: 1.1,
+      thalamus: 1.2,
+      brainstem: 1.15,
+      motor_cortex: 1.05,
+      amygdala: 1.0,
+      hippocampus: 1.0,
+      occipital: 1.05,
+      cerebellum: 1.0,
+    },
+  },
+  {
+    id: "sleep_deprivation",
+    name: "Sleep Deprivation",
+    shortName: "No Sleep",
+    description:
+      "24+ hours awake. Prefrontal offline, amygdala hyperreactive, memory falters.",
+    color: "#60D8FF",
+    baselineOffsets: {
+      prefrontal: -0.08,
+      frontal: -0.05,
+      parietal: -0.03,
+      temporal_left: 0.0,
+      temporal_right: 0.0,
+      thalamus: -0.05,
+      brainstem: 0.1,
+      motor_cortex: -0.03,
+      amygdala: 0.2,
+      hippocampus: -0.08,
+      occipital: -0.02,
+      cerebellum: -0.02,
+    },
+    regionMultipliers: {
+      prefrontal: 0.4,
+      frontal: 0.55,
+      parietal: 0.75,
+      temporal_left: 0.8,
+      temporal_right: 0.8,
+      thalamus: 0.6,
+      brainstem: 1.1,
+      motor_cortex: 0.7,
+      amygdala: 1.5,
+      hippocampus: 0.45,
+      occipital: 0.8,
+      cerebellum: 0.75,
+    },
+  },
+  {
+    id: "acute_stress",
+    name: "Acute Stress",
+    shortName: "Stress",
+    description:
+      "Fight-or-flight. Amygdala hijack, body primed, deliberation suppressed.",
+    color: "#FF3A5C",
+    baselineOffsets: {
+      prefrontal: -0.05,
+      frontal: 0.05,
+      parietal: 0.1,
+      temporal_left: 0.0,
+      temporal_right: 0.05,
+      thalamus: 0.15,
+      brainstem: 0.25,
+      motor_cortex: 0.2,
+      amygdala: 0.3,
+      hippocampus: -0.05,
+      occipital: 0.1,
+      cerebellum: 0.1,
+    },
+    regionMultipliers: {
+      prefrontal: 0.6,
+      frontal: 0.8,
+      parietal: 1.2,
+      temporal_left: 0.8,
+      temporal_right: 1.1,
+      thalamus: 1.3,
+      brainstem: 1.4,
+      motor_cortex: 1.4,
+      amygdala: 1.6,
+      hippocampus: 0.5,
+      occipital: 1.2,
+      cerebellum: 1.2,
+    },
+  },
+];
+
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+
+// Produce the visual activations for a given modifier in the resting state
+// (no scenario running). Negative offsets clamp to 0 — we can't dim below
+// dormant, only add glow.
+function baselineActivationsFor(modifier) {
+  if (!modifier) return {};
+  const out = {};
+  Object.entries(modifier.baselineOffsets).forEach(([id, off]) => {
+    if (off > 0) out[id] = clamp01(off);
+  });
+  return out;
+}
+
+// Apply a modifier to a set of scenario activations. Each region's final
+// value is: clamp(baselineOffset + scenarioIntensity * regionMultiplier).
+function applyModifierToStep(stepRegions, modifier) {
+  if (!modifier) {
+    const out = {};
+    Object.entries(stepRegions).forEach(([id, data]) => {
+      out[id] = data.intensity;
+    });
+    return out;
+  }
+  const out = {};
+  // Start with baseline offsets so every region that has a baseline glow is
+  // represented, not just regions the LLM mentioned.
+  Object.entries(modifier.baselineOffsets).forEach(([id, off]) => {
+    if (off > 0) out[id] = off;
+  });
+  Object.entries(stepRegions).forEach(([id, data]) => {
+    const offset = modifier.baselineOffsets[id] || 0;
+    const mult = modifier.regionMultipliers[id] ?? 1;
+    out[id] = clamp01(offset + data.intensity * mult);
+  });
+  return out;
+}
+
 function generateClusterNodes(region) {
   const nodes = [];
   for (let i = 0; i < region.nodeCount; i++) {
@@ -351,25 +503,43 @@ function buildFacialLandmarkPairs() {
     new THREE.Vector3(0.48, -0.52, -0.35),
   ]);
 
-  // Scalp-to-occiput contour line. Single midline arc from the hairline
-  // above the brow, up and over the crown, down to the base of the skull.
-  const scalpContour = () => {
+  // Scalp-to-occiput contour line. Midline arc by default, with optional
+  // tilt around the z-axis to produce lateral copies that run over the
+  // sides of the skull parallel to the midline.
+  const scalpContour = (
+    tiltDeg = 0,
+    tMax = 0.82,
+    tMin = 0.18,
+    flatness = 1,
+    xOffset = 0
+  ) => {
     const pts = [];
     const segs = 28;
-    // Stop the arc before the full π so the back endpoint lands higher/
-    // closer to the skull rather than extending all the way to the base.
-    const tMax = 0.82;
+    const theta = (tiltDeg * Math.PI) / 180;
+    const cosT = Math.cos(theta);
+    const sinT = Math.sin(theta);
     for (let i = 0; i <= segs; i++) {
-      const t = (i / segs) * tMax;
+      const t = tMin + (i / segs) * (tMax - tMin);
       const angle = Math.PI * t;
-      const y = 0.22 + Math.sin(angle) * 1.25 - t * 0.75;
+      const yRaw = 0.22 + Math.sin(angle) * 1.25 - t * 0.75;
+      // Flatten the arc shape (vertical compression) without shrinking the
+      // distance to the centerline — apply flatness to a copy that's only
+      // used for the lateral (rx) component so the side arcs sit where we
+      // want them, just with a less curved profile.
+      const yFlat = yRaw * flatness;
       const cosA = Math.cos(angle);
       const z = (cosA >= 0 ? 1.3 : 0.85) * cosA - 0.1;
-      pts.push(new THREE.Vector3(0, y, z));
+      const rx = -yRaw * sinT + xOffset * Math.sign(-sinT || 1);
+      const ry = yFlat * cosT;
+      pts.push(new THREE.Vector3(rx, ry, z));
     }
     return pts;
   };
-  addPolyline(scalpContour());
+  addPolyline(scalpContour(0, 0.82, 0.18));
+  addPolyline(scalpContour(-35, 0.72, 0.18));
+  addPolyline(scalpContour(35, 0.72, 0.18));
+  addPolyline(scalpContour(-55, 0.68, 0.2, 0.5, 0));
+  addPolyline(scalpContour(55, 0.68, 0.2, 0.5, 0));
 
   return pairs;
 }
@@ -439,9 +609,26 @@ export default function BrainViz() {
   const [errorMsg, setErrorMsg] = useState("");
   const [groupOverride, setGroupOverride] = useState({});
   const [processingDots, setProcessingDots] = useState(0);
+  const [activeModifierId, setActiveModifierId] = useState(null);
+  const activeModifier =
+    MODIFIERS.find((m) => m.id === activeModifierId) || null;
   const tryScrollRef = useRef(null);
   const [tryScrollState, setTryScrollState] = useState({ canLeft: false, canRight: true });
   const tryDragRef = useRef({ isDown: false, startX: 0, startScroll: 0, didDrag: false });
+
+  // When the active modifier changes, update the visible activations.
+  // If a scenario step is currently showing, re-apply the modifier math to
+  // it; otherwise show the modifier's resting-state baseline (or empty).
+  useEffect(() => {
+    if (currentStep >= 0 && activationSteps[currentStep]) {
+      setActivations(
+        applyModifierToStep(activationSteps[currentStep].regions, activeModifier)
+      );
+    } else {
+      setActivations(baselineActivationsFor(activeModifier));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeModifierId]);
 
   useEffect(() => {
     if (!isProcessing) {
@@ -711,7 +898,7 @@ export default function BrainViz() {
     setIsProcessing(true);
     setErrorMsg("");
     setScenarioText(inputText.trim());
-    setActivations({});
+    setActivations(baselineActivationsFor(activeModifier));
     setActivationSteps([]);
     setCurrentStep(-1);
     setIsPlaying(false);
@@ -722,7 +909,10 @@ export default function BrainViz() {
       const response = await fetch("/api/process-scenario", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenario: inputText.trim() }),
+        body: JSON.stringify({
+          scenario: inputText.trim(),
+          modifier: activeModifier ? activeModifier.id : null,
+        }),
       });
 
       if (!response.ok) {
@@ -737,11 +927,7 @@ export default function BrainViz() {
       setCurrentStep(0);
 
       if (steps.length > 0) {
-        const regionActivations = {};
-        Object.entries(steps[0].regions).forEach(([id, data]) => {
-          regionActivations[id] = data.intensity;
-        });
-        setActivations(regionActivations);
+        setActivations(applyModifierToStep(steps[0].regions, activeModifier));
         setCallouts(
           Object.entries(steps[0].regions).map(([id, data]) => ({
             regionId: id,
@@ -762,11 +948,7 @@ export default function BrainViz() {
       if (stepIndex < 0 || stepIndex >= activationSteps.length) return;
       setCurrentStep(stepIndex);
       const step = activationSteps[stepIndex];
-      const regionActivations = {};
-      Object.entries(step.regions).forEach(([id, data]) => {
-        regionActivations[id] = data.intensity;
-      });
-      setActivations(regionActivations);
+      setActivations(applyModifierToStep(step.regions, activeModifier));
       setCallouts(
         Object.entries(step.regions).map(([id, data]) => ({
           regionId: id,
@@ -775,7 +957,7 @@ export default function BrainViz() {
         }))
       );
     },
-    [activationSteps]
+    [activationSteps, activeModifier]
   );
 
   useEffect(() => {
@@ -919,6 +1101,50 @@ export default function BrainViz() {
               >
                 {scenarioText || "—"}
               </div>
+              {activeModifier && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    flexShrink: 0,
+                    paddingLeft: "16px",
+                    borderLeft: "1px solid rgba(10,10,18,0.15)",
+                  }}
+                >
+                  <span
+                    style={{
+                      color: "#0a0a12",
+                      fontSize: "11px",
+                      letterSpacing: "0.14em",
+                      textTransform: "uppercase",
+                      fontWeight: 700,
+                      opacity: 0.55,
+                    }}
+                  >
+                    STATE
+                  </span>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: "10px",
+                      height: "10px",
+                      borderRadius: "50%",
+                      background: activeModifier.color,
+                      boxShadow: `0 0 8px ${activeModifier.color}`,
+                    }}
+                  />
+                  <span
+                    style={{
+                      color: "#0a0a12",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {activeModifier.name}
+                  </span>
+                </div>
+              )}
               {isProcessing && (
                 <div
                   style={{
@@ -1459,6 +1685,97 @@ export default function BrainViz() {
             </div>
           </div>
         )}
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            paddingLeft: "14px",
+          }}
+        >
+          <span
+            style={{
+              color: "#c0c8d8",
+              fontSize: "13px",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              fontWeight: 500,
+              flexShrink: 0,
+            }}
+          >
+            STATE
+          </span>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            {MODIFIERS.map((mod) => {
+              const isActive = activeModifierId === mod.id;
+              return (
+                <button
+                  key={mod.id}
+                  onClick={() =>
+                    setActiveModifierId(isActive ? null : mod.id)
+                  }
+                  title={mod.description}
+                  style={{
+                    background: isActive
+                      ? `${mod.color}22`
+                      : "transparent",
+                    border: `1px solid ${
+                      isActive ? mod.color : "rgba(255,255,255,0.1)"
+                    }`,
+                    color: isActive ? mod.color : "#c0c8d8",
+                    padding: "5px 12px 5px 10px",
+                    borderRadius: "14px",
+                    cursor: "pointer",
+                    fontFamily: fontStack,
+                    fontSize: "13px",
+                    fontWeight: 500,
+                    whiteSpace: "nowrap",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "7px",
+                    transition: "all 0.2s ease",
+                    boxShadow: isActive
+                      ? `0 0 12px ${mod.color}33`
+                      : "none",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      background: mod.color,
+                      boxShadow: isActive
+                        ? `0 0 8px ${mod.color}`
+                        : "none",
+                      flexShrink: 0,
+                    }}
+                  />
+                  {mod.name}
+                </button>
+              );
+            })}
+            {activeModifierId && (
+              <button
+                onClick={() => setActiveModifierId(null)}
+                style={{
+                  background: "transparent",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  color: "#a5adbd",
+                  padding: "5px 12px",
+                  borderRadius: "14px",
+                  cursor: "pointer",
+                  fontFamily: fontStack,
+                  fontSize: "13px",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
 
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <div style={{ position: "relative", flex: 1 }}>

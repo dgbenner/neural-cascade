@@ -1,5 +1,14 @@
 import { isAuthed } from "../../lib/auth";
 
+const MODIFIER_CONTEXT = {
+  caffeine:
+    "The subject has recently consumed caffeine. Adenosine receptors are blocked, norepinephrine and dopamine are elevated. Expect heightened alertness, faster transitions between steps, stronger prefrontal and attention-related engagement, and a slightly amped baseline before the scenario even begins.",
+  sleep_deprivation:
+    "The subject has been awake for 24+ hours. Prefrontal cortex function is significantly degraded, amygdala is hyperreactive, hippocampal memory encoding is impaired, and thalamic sensory gating is sloppy. Expect blunted executive responses, exaggerated emotional reactions, poor memory consolidation, and slower, less coordinated processing.",
+  acute_stress:
+    "The subject is under acute stress — a fight-or-flight state with cortisol and adrenaline active. Amygdala dominates, prefrontal deliberation is suppressed, motor cortex and brainstem are primed for action, sensory processing is sharpened, and hippocampal encoding is compromised. Expect a much faster, more reactive cascade that bypasses careful thought.",
+};
+
 const BRAIN_REGIONS = [
   { id: "frontal", name: "Frontal Lobe", description: "Executive function, decision-making, planning, personality, motor control" },
   { id: "prefrontal", name: "Prefrontal Cortex", description: "Complex planning, social behavior, impulse control, working memory" },
@@ -28,10 +37,15 @@ export async function POST(request) {
     );
   }
 
-  const { scenario } = await request.json().catch(() => ({}));
+  const { scenario, modifier } = await request.json().catch(() => ({}));
   if (!scenario || typeof scenario !== "string" || scenario.length > 500) {
     return Response.json({ error: "Invalid scenario" }, { status: 400 });
   }
+
+  const modifierContext =
+    modifier && MODIFIER_CONTEXT[modifier]
+      ? `\n\nBrain state modifier: ${MODIFIER_CONTEXT[modifier]}\n\nYour description field for each step MUST reference how this state shapes the neural response. Your intensity values should already reflect this modulation — do not let the visualization layer compensate.`
+      : "";
 
   const regionList = BRAIN_REGIONS.map(
     (r) => `- ${r.id}: ${r.name} (${r.description})`
@@ -42,7 +56,7 @@ export async function POST(request) {
 Available brain regions:
 ${regionList}
 
-Scenario: "${scenario.trim()}"
+Scenario: "${scenario.trim()}"${modifierContext}
 
 Respond ONLY with a JSON array of activation steps in temporal order. Each step represents a moment in the neural response. A step can activate multiple regions simultaneously. Format:
 
