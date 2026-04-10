@@ -609,12 +609,14 @@ export default function BrainViz() {
   const [errorMsg, setErrorMsg] = useState("");
   const [groupOverride, setGroupOverride] = useState({});
   const [processingDots, setProcessingDots] = useState(0);
-  const [activeModifierId, setActiveModifierId] = useState(null);
+  // activeModifierId is wired up via useState but the setter is intentionally
+  // unused for now — the STATE row is frozen/dimmed until we figure out the
+  // final modifier UX. Keeping the state itself so the resting-state preview
+  // and modifier pipeline stay functional.
+  const [activeModifierId] = useState(null);
   const activeModifier =
     MODIFIERS.find((m) => m.id === activeModifierId) || null;
-  const tryScrollRef = useRef(null);
-  const [tryScrollState, setTryScrollState] = useState({ canLeft: false, canRight: true });
-  const tryDragRef = useRef({ isDown: false, startX: 0, startScroll: 0, didDrag: false });
+  const [presetSheetOpen, setPresetSheetOpen] = useState(false);
 
   // When the active modifier changes, update the visible activations.
   // If a scenario step is currently showing, re-apply the modifier math to
@@ -640,33 +642,6 @@ export default function BrainViz() {
     }, 400);
     return () => clearInterval(id);
   }, [isProcessing]);
-
-  const updateTryScrollState = useCallback(() => {
-    const el = tryScrollRef.current;
-    if (!el) return;
-    const canLeft = el.scrollLeft > 4;
-    const canRight = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
-    setTryScrollState({ canLeft, canRight });
-  }, []);
-
-  const scrollTry = (direction) => {
-    const el = tryScrollRef.current;
-    if (!el) return;
-    const delta = el.clientWidth * 0.7 * direction;
-    el.scrollBy({ left: delta, behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    updateTryScrollState();
-    const el = tryScrollRef.current;
-    if (!el) return;
-    el.addEventListener("scroll", updateTryScrollState);
-    window.addEventListener("resize", updateTryScrollState);
-    return () => {
-      el.removeEventListener("scroll", updateTryScrollState);
-      window.removeEventListener("resize", updateTryScrollState);
-    };
-  }, [updateTryScrollState]);
 
   const playTimerRef = useRef(null);
 
@@ -1308,12 +1283,24 @@ export default function BrainViz() {
             className="thin-scroll"
             style={{
               width: "340px",
-              borderRight: "1px solid rgba(255,255,255,0.06)",
-              padding: "20px 18px",
+              borderLeft: "1px solid rgba(255,255,255,0.06)",
+              padding: "18px 16px",
               flexShrink: 0,
-              order: -1,
             }}
           >
+            <div
+              style={{
+                color: "#e0e4ea",
+                fontSize: "12px",
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                fontWeight: 600,
+                marginBottom: "16px",
+                paddingLeft: "2px",
+              }}
+            >
+              Brain Regions
+            </div>
             {REGION_GROUPS.map((group) => {
               const groupRegions = group.regionIds
                 .map((id) => BRAIN_REGIONS.find((r) => r.id === id))
@@ -1405,7 +1392,7 @@ export default function BrainViz() {
                       <span
                         style={{
                           color: groupAnyActive ? "#ffffff" : "#f0f3f8",
-                          fontSize: "17px",
+                          fontSize: "14px",
                           fontWeight: 600,
                           letterSpacing: "-0.01em",
                           flex: 1,
@@ -1416,9 +1403,9 @@ export default function BrainViz() {
                     </div>
                     <div
                       style={{
-                        color: "#c0c8d8",
-                        fontSize: "13px",
-                        marginTop: "4px",
+                        color: "#a5adbd",
+                        fontSize: "11px",
+                        marginTop: "3px",
                         marginLeft: "24px",
                         lineHeight: 1.4,
                       }}
@@ -1441,8 +1428,8 @@ export default function BrainViz() {
                             title={region.name}
                             style={{
                               width: "52px",
-                              height: "10px",
-                              borderRadius: "2px",
+                              height: "18px",
+                              borderRadius: "3px",
                               background: region.color,
                               opacity: act > 0 ? 1 : 0.65,
                               boxShadow: act > 0
@@ -1686,18 +1673,23 @@ export default function BrainViz() {
           </div>
         )}
 
+        {/* Frozen / dimmed STATE row — functionality preserved but visually
+            de-emphasized and non-interactive for now. */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
             gap: "10px",
             paddingLeft: "14px",
+            opacity: 0.2,
+            pointerEvents: "none",
           }}
+          aria-hidden="true"
         >
           <span
             style={{
               color: "#c0c8d8",
-              fontSize: "13px",
+              fontSize: "11px",
               letterSpacing: "0.08em",
               textTransform: "uppercase",
               fontWeight: 500,
@@ -1706,263 +1698,313 @@ export default function BrainViz() {
           >
             STATE
           </span>
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-            {MODIFIERS.map((mod) => {
-              const isActive = activeModifierId === mod.id;
-              return (
-                <button
-                  key={mod.id}
-                  onClick={() =>
-                    setActiveModifierId(isActive ? null : mod.id)
-                  }
-                  title={mod.description}
-                  style={{
-                    background: isActive
-                      ? `${mod.color}22`
-                      : "transparent",
-                    border: `1px solid ${
-                      isActive ? mod.color : "rgba(255,255,255,0.1)"
-                    }`,
-                    color: isActive ? mod.color : "#c0c8d8",
-                    padding: "5px 12px 5px 10px",
-                    borderRadius: "14px",
-                    cursor: "pointer",
-                    fontFamily: fontStack,
-                    fontSize: "13px",
-                    fontWeight: 500,
-                    whiteSpace: "nowrap",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "7px",
-                    transition: "all 0.2s ease",
-                    boxShadow: isActive
-                      ? `0 0 12px ${mod.color}33`
-                      : "none",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
-                      background: mod.color,
-                      boxShadow: isActive
-                        ? `0 0 8px ${mod.color}`
-                        : "none",
-                      flexShrink: 0,
-                    }}
-                  />
-                  {mod.name}
-                </button>
-              );
-            })}
-            {activeModifierId && (
-              <button
-                onClick={() => setActiveModifierId(null)}
+          <div style={{ display: "flex", gap: "6px" }}>
+            {MODIFIERS.map((mod) => (
+              <div
+                key={mod.id}
                 style={{
                   background: "transparent",
                   border: "1px solid rgba(255,255,255,0.1)",
-                  color: "#a5adbd",
-                  padding: "5px 12px",
+                  color: "#c0c8d8",
+                  padding: "4px 10px 4px 8px",
                   borderRadius: "14px",
-                  cursor: "pointer",
                   fontFamily: fontStack,
-                  fontSize: "13px",
+                  fontSize: "11px",
+                  fontWeight: 500,
                   whiteSpace: "nowrap",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
                 }}
               >
-                Clear
-              </button>
-            )}
+                <span
+                  style={{
+                    width: "7px",
+                    height: "7px",
+                    borderRadius: "50%",
+                    background: mod.color,
+                    flexShrink: 0,
+                  }}
+                />
+                {mod.name}
+              </div>
+            ))}
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <div style={{ position: "relative", flex: 1 }}>
-            <input
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && processScenario()}
-              placeholder="Describe a scenario... e.g. 'Someone throws a baseball at me'"
-              style={{
-                width: "100%",
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: "6px",
-                padding: "10px 14px",
-                color: "#e0e4ea",
-                fontFamily: fontStack,
-                fontSize: "14px",
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-          <button
-            onClick={processScenario}
-            disabled={isProcessing || !inputText.trim()}
-            style={{
-              background: isProcessing ? "rgba(255,195,18,0.1)" : "rgba(255,195,18,0.15)",
-              border: "1px solid rgba(255,195,18,0.3)",
-              color: isProcessing ? "#a5adbd" : "#FFC312",
-              padding: "10px 20px",
-              borderRadius: "6px",
-              cursor: isProcessing ? "default" : "pointer",
-              fontFamily: fontStack,
-              fontSize: "13px",
-              fontWeight: 500,
-              letterSpacing: "0.05em",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {isProcessing ? "PROCESSING..." : "ACTIVATE"}
-          </button>
-        </div>
-
+        {/* Primary scenario input: centered 80%, textarea + reversed-out
+            button attached on the right, preset trigger floating below. */}
         <div
           style={{
             display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            paddingLeft: "14px",
+            justifyContent: "center",
+            padding: "4px 0",
           }}
         >
-          <span
-            style={{
-              color: "#c0c8d8",
-              fontSize: "13px",
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              flexShrink: 0,
-              fontWeight: 500,
-            }}
-          >
-            TRY
-          </span>
-          <button
-            onClick={() => scrollTry(-1)}
-            disabled={!tryScrollState.canLeft}
-            aria-label="Scroll scenarios left"
-            style={{
-              background: "transparent",
-              border: "1px solid rgba(255,255,255,0.08)",
-              color: tryScrollState.canLeft ? "#e0e4ea" : "#4a5568",
-              width: "26px",
-              height: "26px",
-              borderRadius: "50%",
-              cursor: tryScrollState.canLeft ? "pointer" : "default",
-              fontFamily: fontStack,
-              fontSize: "16px",
-              lineHeight: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 0,
-              flexShrink: 0,
-              opacity: tryScrollState.canLeft ? 1 : 0.4,
-              transition: "all 0.2s ease",
-            }}
-          >
-            ‹
-          </button>
           <div
-            ref={tryScrollRef}
-            className="no-scrollbar"
-            onMouseDown={(e) => {
-              const el = tryScrollRef.current;
-              if (!el) return;
-              tryDragRef.current = {
-                isDown: true,
-                startX: e.pageX,
-                startScroll: el.scrollLeft,
-                didDrag: false,
-              };
-              el.style.cursor = "grabbing";
-            }}
-            onMouseMove={(e) => {
-              const state = tryDragRef.current;
-              if (!state.isDown) return;
-              const el = tryScrollRef.current;
-              if (!el) return;
-              const dx = e.pageX - state.startX;
-              if (Math.abs(dx) > 4) state.didDrag = true;
-              el.scrollLeft = state.startScroll - dx;
-            }}
-            onMouseUp={() => {
-              tryDragRef.current.isDown = false;
-              const el = tryScrollRef.current;
-              if (el) el.style.cursor = "grab";
-            }}
-            onMouseLeave={() => {
-              tryDragRef.current.isDown = false;
-              const el = tryScrollRef.current;
-              if (el) el.style.cursor = "grab";
-            }}
             style={{
-              overflowX: "auto",
-              display: "flex",
-              gap: "6px",
-              flex: 1,
-              scrollBehavior: "auto",
-              cursor: "grab",
-              userSelect: "none",
+              width: "80%",
+              maxWidth: "900px",
+              position: "relative",
             }}
           >
-            {EXAMPLE_SCENARIOS.map((scenario, i) => (
-              <button
-                key={i}
-                onClick={() => {
-                  if (tryDragRef.current.didDrag) return;
-                  setInputText(scenario);
+            <div
+              style={{
+                display: "flex",
+                alignItems: "stretch",
+                background: "rgba(255,255,255,0.04)",
+                border: "2px solid rgba(255,255,255,0.55)",
+                borderRadius: "14px",
+                overflow: "hidden",
+              }}
+            >
+              <textarea
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    processScenario();
+                  }
                 }}
+                placeholder="Describe a scenario… e.g. 'Someone throws a baseball at me'"
+                rows={2}
+                style={{
+                  flex: 1,
+                  background: "transparent",
+                  border: "none",
+                  padding: "14px 18px",
+                  color: "#ffffff",
+                  fontFamily: fontStack,
+                  fontSize: "16px",
+                  outline: "none",
+                  resize: "none",
+                  lineHeight: 1.4,
+                }}
+              />
+              <button
+                onClick={processScenario}
+                disabled={isProcessing || !inputText.trim()}
+                style={{
+                  background: isProcessing || !inputText.trim()
+                    ? "rgba(255,255,255,0.3)"
+                    : "#ffffff",
+                  border: "none",
+                  color: "#0a0a12",
+                  padding: "0 22px",
+                  cursor:
+                    isProcessing || !inputText.trim()
+                      ? "default"
+                      : "pointer",
+                  fontFamily: fontStack,
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  whiteSpace: "nowrap",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  flexShrink: 0,
+                  transition: "background 0.2s ease",
+                }}
+              >
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "22px",
+                    height: "22px",
+                    borderRadius: "50%",
+                    background: "#0a0a12",
+                    color: "#ffffff",
+                    fontSize: "14px",
+                    lineHeight: 1,
+                  }}
+                  aria-hidden="true"
+                >
+                  ↑
+                </span>
+                {isProcessing ? "PROCESSING" : "RUN SCENARIO"}
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                marginTop: "8px",
+              }}
+            >
+              <button
+                onClick={() => setPresetSheetOpen(true)}
                 style={{
                   background: "transparent",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.14)",
                   color: "#c0c8d8",
-                  padding: "4px 12px",
+                  padding: "6px 14px",
                   borderRadius: "14px",
                   cursor: "pointer",
                   fontFamily: fontStack,
-                  fontSize: "13px",
-                  whiteSpace: "nowrap",
-                  flexShrink: 0,
-                  userSelect: "none",
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
                 }}
-                draggable={false}
               >
-                {scenario}
+                Browse Preset Scenarios
+                <span aria-hidden="true" style={{ fontSize: "14px" }}>
+                  →
+                </span>
               </button>
-            ))}
+            </div>
           </div>
-          <button
-            onClick={() => scrollTry(1)}
-            disabled={!tryScrollState.canRight}
-            aria-label="Scroll scenarios right"
-            style={{
-              background: "transparent",
-              border: "1px solid rgba(255,255,255,0.08)",
-              color: tryScrollState.canRight ? "#e0e4ea" : "#4a5568",
-              width: "26px",
-              height: "26px",
-              borderRadius: "50%",
-              cursor: tryScrollState.canRight ? "pointer" : "default",
-              fontFamily: fontStack,
-              fontSize: "16px",
-              lineHeight: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 0,
-              flexShrink: 0,
-              opacity: tryScrollState.canRight ? 1 : 0.4,
-              transition: "all 0.2s ease",
-            }}
-          >
-            ›
-          </button>
         </div>
       </div>
+
+      {/* Preset Scenarios side sheet — slides from the right, overlays
+          the legend. Click outside (backdrop) or the X closes without
+          making a selection. Clicking a scenario populates the input
+          and closes the sheet (user still must press RUN SCENARIO). */}
+      {presetSheetOpen && (
+        <>
+          <div
+            onClick={() => setPresetSheetOpen(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.35)",
+              zIndex: 50,
+            }}
+          />
+          <div
+            className="thin-scroll"
+            style={{
+              position: "fixed",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: "30%",
+              minWidth: "360px",
+              maxWidth: "520px",
+              background: "#0f0f18",
+              borderLeft: "1px solid rgba(255,255,255,0.12)",
+              boxShadow: "-20px 0 60px rgba(0,0,0,0.5)",
+              zIndex: 51,
+              padding: "24px 24px 32px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "18px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                justifyContent: "space-between",
+                gap: "16px",
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontFamily: displayFont,
+                    fontSize: "28px",
+                    color: "#ffffff",
+                    letterSpacing: "-0.02em",
+                    lineHeight: 1.1,
+                  }}
+                >
+                  Preset Scenarios
+                </div>
+                <div
+                  style={{
+                    color: "#c0c8d8",
+                    fontSize: "13px",
+                    marginTop: "6px",
+                    lineHeight: 1.45,
+                    maxWidth: "360px",
+                  }}
+                >
+                  Each of these is a small, specific moment. Pick one and
+                  watch the cascade.
+                </div>
+              </div>
+              <button
+                onClick={() => setPresetSheetOpen(false)}
+                aria-label="Close"
+                style={{
+                  background: "transparent",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  color: "#e0e4ea",
+                  padding: "4px 12px",
+                  borderRadius: "12px",
+                  cursor: "pointer",
+                  fontFamily: fontStack,
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  whiteSpace: "nowrap",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  flexShrink: 0,
+                }}
+              >
+                Close
+                <span aria-hidden="true">✕</span>
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+                marginTop: "4px",
+              }}
+            >
+              {EXAMPLE_SCENARIOS.map((scenario, i) => (
+                <button
+                  key={i}
+                  onClick={() => {
+                    setInputText(scenario);
+                    setPresetSheetOpen(false);
+                  }}
+                  style={{
+                    background: "rgba(255,255,255,0.025)",
+                    border: "1px solid rgba(255,255,255,0.07)",
+                    color: "#e0e4ea",
+                    padding: "12px 14px",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    fontFamily: fontStack,
+                    fontSize: "14px",
+                    textAlign: "left",
+                    lineHeight: 1.4,
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background =
+                      "rgba(255,255,255,0.05)";
+                    e.currentTarget.style.borderColor =
+                      "rgba(255,255,255,0.15)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background =
+                      "rgba(255,255,255,0.025)";
+                    e.currentTarget.style.borderColor =
+                      "rgba(255,255,255,0.07)";
+                  }}
+                >
+                  {scenario}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
