@@ -1641,6 +1641,16 @@ export default function BrainViz() {
   // construction first, then the highlight begins.
   const [cardsEntered, setCardsEntered] = useState(false);
 
+  // Flash bang on every step transition. Increment a counter on step
+  // change and use it as the React key for the overlay so the CSS
+  // animation re-fires every time, even if the previous flash is still
+  // running.
+  const [flashKey, setFlashKey] = useState(0);
+  useEffect(() => {
+    if (currentStep < 0) return;
+    setFlashKey((k) => k + 1);
+  }, [currentStep]);
+
   // Reset cycle whenever the step changes — start from the dominant card,
   // hold cards-entered false, and flip it true after the stagger completes.
   useEffect(() => {
@@ -2755,6 +2765,16 @@ export default function BrainViz() {
             onTouchMove={handlePointerMove}
             onTouchEnd={handlePointerUp}
           />
+          {/* Step transition flash. Re-mounted on every step change via
+              the flashKey so the CSS animation re-fires every time, even
+              if the previous flash was still in flight. */}
+          {flashKey > 0 && (
+            <div
+              key={flashKey}
+              className="nc-flashbang"
+              aria-hidden="true"
+            />
+          )}
 
           {/* Top toast — appears only while a scenario is being processed.
               Spinner on top, processing line just below, scenario text
@@ -3408,10 +3428,12 @@ export default function BrainViz() {
               const groupAnyActive = groupRegions.some(
                 (r) => (activations[r.id] || 0) > 0
               );
+              // Default: every group starts collapsed when the guide
+              // opens. The user discovers details by expanding groups
+              // themselves — the swatch row with checkmarks already
+              // tells them which regions are active.
               const isExpanded =
-                group.id in groupOverride
-                  ? groupOverride[group.id]
-                  : groupAnyActive;
+                group.id in groupOverride ? groupOverride[group.id] : false;
 
               const toggleGroup = () => {
                 setGroupOverride((prev) => ({

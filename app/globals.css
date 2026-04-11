@@ -185,3 +185,35 @@ a {
     transform: translateY(0);
   }
 }
+
+/* Flash bang on every step transition (manual or autoplay). A bright
+   white wash blooms in and out over ~75ms with ease-in-out. */
+.nc-flashbang {
+  position: absolute;
+  top: -10%;
+  left: -10%;
+  right: -10%;
+  bottom: -10%;
+  border-radius: 120px;
+  background: rgba(255, 255, 255, 0.5);
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: 25;
+  opacity: 0;
+  animation: nc-flashbang 75ms ease-in-out forwards;
+}
+
+@keyframes nc-flashbang {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  45% {
+    opacity: 0.45;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+}
