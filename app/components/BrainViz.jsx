@@ -884,7 +884,7 @@ export default function BrainViz() {
         const headMat = new THREE.MeshBasicMaterial({
           color: 0xaecbe8,
           transparent: true,
-          opacity: 0.175,
+          opacity: 0.1,
           wireframe: true,
           side: THREE.BackSide,
           depthWrite: false,
