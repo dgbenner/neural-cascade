@@ -37,7 +37,7 @@ const BRAIN_REGIONS = [
     name: "Temporal Lobe (Left)",
     description: "Language comprehension, verbal memory, speech processing",
     color: "#2E9CFF",
-    basePos: { x: -0.75, y: -0.1, z: 0.1 },
+    basePos: { x: -0.6, y: -0.1, z: 0.1 },
     clusterRadius: 0.25,
     nodeCount: 12,
   },
@@ -46,7 +46,7 @@ const BRAIN_REGIONS = [
     name: "Temporal Lobe (Right)",
     description: "Music perception, face recognition, emotional memory",
     color: "#5BD4FF",
-    basePos: { x: 0.75, y: -0.1, z: 0.1 },
+    basePos: { x: 0.6, y: -0.1, z: 0.1 },
     clusterRadius: 0.25,
     nodeCount: 12,
   },
@@ -1745,7 +1745,7 @@ export default function BrainViz() {
         {/* Left: stacked wordmark — title sits on top, "Brain Activity
             Visualizer" subtitle slots underneath. Title size tuned so the
             two lines form a tidy block of roughly equal width. */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px", flexShrink: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px", flexShrink: 0, userSelect: "none", WebkitUserSelect: "none" }}>
           <span
             style={{
               position: "relative",
@@ -1883,6 +1883,8 @@ export default function BrainViz() {
                   lineHeight: 1,
                   letterSpacing: "-0.01em",
                   whiteSpace: "nowrap",
+                  userSelect: "none",
+                  WebkitUserSelect: "none",
                 }}
               >
                 Step {currentStep + 1} of {activationSteps.length}
@@ -1983,8 +1985,34 @@ export default function BrainViz() {
                   fontSize: "12px",
                   fontWeight: 500,
                   letterSpacing: "0.04em",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  userSelect: "none",
+                  WebkitUserSelect: "none",
                 }}
               >
+                {activationSteps.length > 0 && (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: "16px",
+                      height: "16px",
+                      borderRadius: "50%",
+                      background: "#ffffff",
+                      color: "#0a0a12",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "10px",
+                      fontWeight: 800,
+                      lineHeight: 1,
+                      flexShrink: 0,
+                    }}
+                  >
+                    ✓
+                  </span>
+                )}
                 Open Brain Region Guide
               </button>
             )}
@@ -2017,6 +2045,8 @@ export default function BrainViz() {
                     gap: "8px",
                     lineHeight: 1,
                     flexShrink: 0,
+                    userSelect: "none",
+                    WebkitUserSelect: "none",
                   }}
                 >
                   {isPlaying ? (
@@ -2693,6 +2723,8 @@ export default function BrainViz() {
               textAlign: "center",
               fontFamily: fontStack,
               marginTop: "2px",
+              userSelect: "none",
+              WebkitUserSelect: "none",
             }}
           >
             {activationSteps[currentStep]?.description}{" "}
@@ -3165,6 +3197,8 @@ export default function BrainViz() {
                 overflowY: "auto",
                 pointerEvents: "auto",
                 zIndex: 4,
+                userSelect: "none",
+                WebkitUserSelect: "none",
               }}
             >
               {activeCallouts.map((callout, i) => {
@@ -3776,6 +3810,8 @@ export default function BrainViz() {
                   color: "#0a0a12",
                   padding: "0 22px",
                   justifyContent: "center",
+                  userSelect: "none",
+                  WebkitUserSelect: "none",
                   cursor:
                     isProcessing || !inputText.trim()
                       ? "default"
