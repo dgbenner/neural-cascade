@@ -1155,6 +1155,183 @@ export default function BrainViz() {
                   </span>
                 </div>
               )}
+              {activationSteps.length > 0 && !isProcessing && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    flexShrink: 0,
+                    paddingLeft: "14px",
+                    borderLeft: "1px solid rgba(10,10,18,0.15)",
+                  }}
+                >
+                  <button
+                    onClick={togglePlay}
+                    aria-label={isPlaying ? "Pause" : "Play"}
+                    style={{
+                      background: "#0a0a12",
+                      border: "none",
+                      color: "#ffffff",
+                      width: "26px",
+                      height: "26px",
+                      borderRadius: "50%",
+                      cursor: "pointer",
+                      fontFamily: fontStack,
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 0,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {isPlaying ? (
+                      <span style={{ display: "flex", gap: "2px" }}>
+                        <span style={{ width: "3px", height: "10px", background: "#ffffff", display: "inline-block" }} />
+                        <span style={{ width: "3px", height: "10px", background: "#ffffff", display: "inline-block" }} />
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          width: 0,
+                          height: 0,
+                          borderTop: "6px solid transparent",
+                          borderBottom: "6px solid transparent",
+                          borderLeft: "9px solid #ffffff",
+                          marginLeft: "2px",
+                        }}
+                      />
+                    )}
+                  </button>
+
+                  <div style={{ display: "flex", gap: "3px", alignItems: "center" }}>
+                    {activationSteps.map((step, i) => {
+                      const isCurrent = i === currentStep;
+                      const isPast = i < currentStep;
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => {
+                            setIsPlaying(false);
+                            goToStep(i);
+                          }}
+                          style={{
+                            width: isCurrent ? "18px" : "6px",
+                            height: "6px",
+                            borderRadius: "3px",
+                            background: isCurrent
+                              ? "#0a0a12"
+                              : isPast
+                              ? "rgba(10,10,18,0.45)"
+                              : "rgba(10,10,18,0.15)",
+                            border: "none",
+                            cursor: "pointer",
+                            transition: "all 0.3s ease",
+                            padding: 0,
+                          }}
+                          title={step.time_label}
+                          aria-label={`Step ${i + 1}`}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      marginLeft: "4px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: "#0a0a12",
+                        fontSize: "9px",
+                        letterSpacing: "0.12em",
+                        textTransform: "uppercase",
+                        fontWeight: 700,
+                        opacity: 0.45,
+                        marginRight: "2px",
+                      }}
+                    >
+                      SPEED
+                    </span>
+                    {[0.5, 1, 2, 4].map((speed) => {
+                      const isActive = playbackSpeed === speed;
+                      return (
+                        <button
+                          key={speed}
+                          onClick={() => setPlaybackSpeed(speed)}
+                          style={{
+                            background: isActive ? "#0a0a12" : "transparent",
+                            border: `1px solid ${isActive ? "#0a0a12" : "rgba(10,10,18,0.25)"}`,
+                            color: isActive ? "#ffffff" : "#0a0a12",
+                            padding: "2px 6px",
+                            borderRadius: "3px",
+                            cursor: "pointer",
+                            fontFamily: fontStack,
+                            fontSize: "10px",
+                            fontWeight: 600,
+                            lineHeight: 1,
+                            minWidth: "26px",
+                          }}
+                        >
+                          {speed}×
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: "#0a0a12",
+                        fontSize: "9px",
+                        letterSpacing: "0.12em",
+                        textTransform: "uppercase",
+                        fontWeight: 700,
+                        opacity: 0.45,
+                        marginRight: "2px",
+                      }}
+                    >
+                      DUR
+                    </span>
+                    {[1500, 3000, 5000, 8000].map((dur) => {
+                      const isActive = stepDuration === dur;
+                      return (
+                        <button
+                          key={dur}
+                          onClick={() => setStepDuration(dur)}
+                          style={{
+                            background: isActive ? "#0a0a12" : "transparent",
+                            border: `1px solid ${isActive ? "#0a0a12" : "rgba(10,10,18,0.25)"}`,
+                            color: isActive ? "#ffffff" : "#0a0a12",
+                            padding: "2px 6px",
+                            borderRadius: "3px",
+                            cursor: "pointer",
+                            fontFamily: fontStack,
+                            fontSize: "10px",
+                            fontWeight: 600,
+                            lineHeight: 1,
+                            minWidth: "26px",
+                          }}
+                        >
+                          {dur / 1000}s
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1581,98 +1758,6 @@ export default function BrainViz() {
           background: "rgba(10,10,18,0.95)",
         }}
       >
-        {activationSteps.length > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <button
-              onClick={togglePlay}
-              style={{
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                color: "#e0e4ea",
-                padding: "6px 14px",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontFamily: fontStack,
-                fontSize: "13px",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-              }}
-            >
-              {isPlaying ? "Pause" : "Play"}
-            </button>
-
-            <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-              {activationSteps.map((step, i) => (
-                <button
-                  key={i}
-                  onClick={() => {
-                    setIsPlaying(false);
-                    goToStep(i);
-                  }}
-                  style={{
-                    width: i === currentStep ? "24px" : "8px",
-                    height: "8px",
-                    borderRadius: "4px",
-                    background: i === currentStep ? "#FFC312" : i < currentStep ? "rgba(255,195,18,0.3)" : "rgba(255,255,255,0.1)",
-                    border: "none",
-                    cursor: "pointer",
-                    transition: "all 0.3s ease",
-                    padding: 0,
-                  }}
-                  title={step.time_label}
-                />
-              ))}
-            </div>
-
-            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ color: "#8a95a8", fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                Speed
-              </span>
-              {[0.5, 1, 2, 4].map((speed) => (
-                <button
-                  key={speed}
-                  onClick={() => setPlaybackSpeed(speed)}
-                  style={{
-                    background: playbackSpeed === speed ? "rgba(255,195,18,0.15)" : "transparent",
-                    border: `1px solid ${playbackSpeed === speed ? "rgba(255,195,18,0.3)" : "rgba(255,255,255,0.06)"}`,
-                    color: playbackSpeed === speed ? "#FFC312" : "#a5adbd",
-                    padding: "2px 8px",
-                    borderRadius: "3px",
-                    cursor: "pointer",
-                    fontFamily: fontStack,
-                    fontSize: "14px",
-                  }}
-                >
-                  {speed}x
-                </button>
-              ))}
-
-              <span style={{ color: "#8a95a8", fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.08em", marginLeft: "8px" }}>
-                Duration
-              </span>
-              {[1500, 3000, 5000, 8000].map((dur) => (
-                <button
-                  key={dur}
-                  onClick={() => setStepDuration(dur)}
-                  style={{
-                    background: stepDuration === dur ? "rgba(84,160,255,0.15)" : "transparent",
-                    border: `1px solid ${stepDuration === dur ? "rgba(84,160,255,0.3)" : "rgba(255,255,255,0.06)"}`,
-                    color: stepDuration === dur ? "#54A0FF" : "#a5adbd",
-                    padding: "2px 8px",
-                    borderRadius: "3px",
-                    cursor: "pointer",
-                    fontFamily: fontStack,
-                    fontSize: "14px",
-                  }}
-                >
-                  {dur / 1000}s
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Frozen / dimmed STATE row — functionality preserved but visually
             de-emphasized and non-interactive for now. Centered above the
             primary scenario input. */}
