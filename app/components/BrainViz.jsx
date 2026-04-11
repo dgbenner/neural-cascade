@@ -918,7 +918,7 @@ export default function BrainViz() {
         // Y: negative lift drops the skull down around the brain.
         // Z: negative shift moves the head backward so the occiput covers
         // the rear edge of the brain nodes.
-        const headYLift = -1.4;
+        const headYLift = -1.1;
         const headZShift = -0.45;
         obj.position.set(
           -center.x * fitScale,
