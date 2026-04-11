@@ -605,7 +605,7 @@ export default function BrainViz() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [scenarioText, setScenarioText] = useState("");
   const [callouts, setCallouts] = useState([]);
-  const LEGEND_BREAKPOINT = 1100;
+  const LEGEND_BREAKPOINT = 880;
   const [windowWide, setWindowWide] = useState(true);
   const [manualOverride, setManualOverride] = useState(null);
 
@@ -702,9 +702,15 @@ export default function BrainViz() {
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x0a0a12, 1);
+    // Explicitly style the canvas to fill its parent. We use setSize(..., false)
+    // below so Three.js only updates the drawing buffer and never touches
+    // these CSS dimensions. This is the correct Three.js + flexbox pattern.
+    renderer.domElement.style.display = "block";
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
+    renderer.setSize(width, height, false);
     mountRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
