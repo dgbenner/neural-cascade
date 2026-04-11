@@ -75,3 +75,43 @@ a {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Very slow left-right ebb for the Neural Cascade wordmark's mesh
+   gradient. Each background layer is sized 200% wide so shifting
+   background-position drifts the colored blooms sideways under the text. */
+.nc-wordmark {
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  background-position: 0% 100%;
+  animation: nc-wordmark-flow 22s ease-in-out infinite alternate;
+}
+
+@keyframes nc-wordmark-flow {
+  0% {
+    background-position: 0% 100%;
+  }
+  100% {
+    background-position: 100% 100%;
+  }
+}
+
+/* Stacked "bloom" layer — same text, same drift, but the color blooms sit
+   much higher so they cover ~40% of the letters. Opacity ebbs in and out
+   over the same 22s cycle so the coverage breathes between 10% and 40%. */
+.nc-wordmark-bloom {
+  position: absolute;
+  inset: 0;
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  background-position: 0% 100%;
+  animation:
+    nc-wordmark-flow 22s ease-in-out infinite alternate,
+    nc-wordmark-bloom-fade 22s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes nc-wordmark-bloom-fade {
+  0%   { opacity: 0; }
+  50%  { opacity: 1; }
+  100% { opacity: 0; }
+}

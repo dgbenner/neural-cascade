@@ -10,7 +10,7 @@ const BRAIN_REGIONS = [
     name: "Frontal Lobe",
     description: "Executive function, decision-making, planning, personality, motor control",
     color: "#FF6A3D",
-    basePos: { x: 0, y: 0.3, z: 0.7 },
+    basePos: { x: 0, y: 0.3, z: 0.55 },
     clusterRadius: 0.35,
     nodeCount: 18,
   },
@@ -19,7 +19,7 @@ const BRAIN_REGIONS = [
     name: "Prefrontal Cortex",
     description: "Complex planning, social behavior, impulse control, working memory",
     color: "#FF3B30",
-    basePos: { x: 0, y: 0.5, z: 0.85 },
+    basePos: { x: 0, y: 0.5, z: 0.68 },
     clusterRadius: 0.2,
     nodeCount: 12,
   },
@@ -254,6 +254,42 @@ const MODIFIERS = [
       cerebellum: 1.2,
     },
   },
+  {
+    id: "cannabis",
+    name: "Cannabis (THC)",
+    shortName: "Cannabis",
+    description:
+      "CB1 receptors engaged. Sensory enhancement, time dilation, working memory dulled, emotional reactivity shifted.",
+    color: "#6DE38A",
+    baselineOffsets: {
+      prefrontal: -0.08,
+      frontal: -0.04,
+      parietal: 0.05,
+      temporal_left: 0.05,
+      temporal_right: 0.12,
+      thalamus: 0.05,
+      brainstem: 0.02,
+      motor_cortex: -0.05,
+      amygdala: -0.05,
+      hippocampus: -0.12,
+      occipital: 0.1,
+      cerebellum: 0.08,
+    },
+    regionMultipliers: {
+      prefrontal: 0.65,
+      frontal: 0.8,
+      parietal: 1.15,
+      temporal_left: 1.1,
+      temporal_right: 1.2,
+      thalamus: 1.05,
+      brainstem: 1.0,
+      motor_cortex: 0.8,
+      amygdala: 0.75,
+      hippocampus: 0.5,
+      occipital: 1.25,
+      cerebellum: 1.15,
+    },
+  },
 ];
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
@@ -296,17 +332,26 @@ function applyModifierToStep(stepRegions, modifier) {
 
 function generateClusterNodes(region) {
   const nodes = [];
+  // Regions that sit on the midline (x≈0) were piling up in a thin vertical
+  // stripe. Give them an extra lateral stretch so they breathe out toward
+  // the ears instead of stacking on top of each other.
+  const isCenterline = Math.abs(region.basePos.x) < 0.2;
+  const xStretch = isCenterline ? 1.9 : 1.25;
+  const yStretch = 1.15;
+  const zStretch = 1.2;
   for (let i = 0; i < region.nodeCount; i++) {
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-    const r = region.clusterRadius * (0.3 + Math.random() * 0.7);
+    // Bias radius outward (was 0.3 + 0.7*r) so clusters fill their volume
+    // instead of clumping near the center point.
+    const r = region.clusterRadius * (0.55 + Math.random() * 0.55);
     nodes.push({
-      x: region.basePos.x + r * Math.sin(phi) * Math.cos(theta),
-      y: region.basePos.y + r * Math.sin(phi) * Math.sin(theta),
-      z: region.basePos.z + r * Math.cos(phi),
+      x: region.basePos.x + r * Math.sin(phi) * Math.cos(theta) * xStretch,
+      y: region.basePos.y + r * Math.sin(phi) * Math.sin(theta) * yStretch,
+      z: region.basePos.z + r * Math.cos(phi) * zStretch,
       regionId: region.id,
       pulseOffset: Math.random() * Math.PI * 2,
-      baseSize: 0.015 + Math.random() * 0.012,
+      baseSize: 0.012 + Math.random() * 0.022,
     });
   }
   return nodes;
@@ -371,6 +416,32 @@ const HEAD_FRAGMENT_SHADER = `
   void main() {
     float t = smoothstep(uNearZ, uFarZ, vViewZ);
     float op = mix(uMinOp, uMaxOp, t);
+    gl_FragColor = vec4(uColor, op);
+  }
+`;
+
+// World-Y vertical fade for the head mesh. Keeps the top of the head at full
+// (already low) opacity and falls off as we move down through the neck and
+// shoulders, so the lower body is barely a whisper. Uses the raw model-space
+// Y so the fade stays anchored to the head as it rotates.
+const HEAD_VFADE_VERTEX_SHADER = `
+  varying float vLocalY;
+  void main() {
+    vLocalY = position.y;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const HEAD_VFADE_FRAGMENT_SHADER = `
+  uniform vec3 uColor;
+  uniform float uFadeStart;
+  uniform float uFadeEnd;
+  uniform float uBottomOp;
+  uniform float uTopOp;
+  varying float vLocalY;
+  void main() {
+    float t = smoothstep(uFadeStart, uFadeEnd, vLocalY);
+    float op = mix(uBottomOp, uTopOp, t);
     gl_FragColor = vec4(uColor, op);
   }
 `;
@@ -616,11 +687,11 @@ function buildFacialLandmarkPairs() {
 }
 
 const EXAMPLE_SCENARIOS = [
-  "Someone throws a baseball at me",
+  "Someone throws me a baseball",
   "I smell fresh coffee brewing in the morning",
   "I hear my favorite song from childhood",
   "I'm solving a complex math problem",
-  "I touch a hot stove by accident",
+  "I accidentally touch a hot stove",
   "I'm remembering my first day of school",
   "I see a spider on the wall",
   "I'm playing piano from sheet music",
@@ -636,15 +707,15 @@ const EXAMPLE_SCENARIOS = [
   "I catch a whiff of a perfume my grandmother used to wear",
   "I'm meditating in complete silence",
   "I watch the sunset paint the sky orange and pink",
-  "I'm trying to remember where I left my keys",
-  "I feel a mosquito bite on my arm",
+  "I'm trying to remember where I parked",
+  "I feel a mosquito land on my arm",
   "I'm learning to ride a bike for the first time",
   "I walk barefoot through wet grass",
   "I'm holding a newborn baby",
-  "I hear a car horn blare right behind me",
+  "A car horn blares right behind me",
   "I'm dancing alone in my kitchen",
   "I taste my favorite childhood meal again",
-  "I'm doing a difficult yoga pose and losing balance",
+  "I lose my balance in a difficult yoga pose",
   "I'm writing a letter to someone I miss",
 ];
 
@@ -652,6 +723,7 @@ export default function BrainViz() {
   const mountRef = useRef(null);
   const resizeBrainRef = useRef(null);
   const headObjRef = useRef(null);
+  const envGroupRef = useRef(null);
   const landmarkLinesRef = useRef(null);
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
@@ -766,7 +838,7 @@ export default function BrainViz() {
     const height = mountRef.current.clientHeight;
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x0a0a12, 0.15);
+    scene.fog = new THREE.FogExp2(0x0a0a12, 0.032);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100);
@@ -798,8 +870,22 @@ export default function BrainViz() {
     brainContentGroup.scale.setScalar(0.9);
     brainGroup.add(brainContentGroup);
 
-    const ambient = new THREE.AmbientLight(0x334466, 0.5);
+    // Low ambient so the shadowed side of each sphere sits deep — contrast
+    // over blend. User wants the highlight crisp and the shadow harsh.
+    const ambient = new THREE.AmbientLight(0x223044, 0.35);
     scene.add(ambient);
+
+    // Hard key light from upper-front-left: high intensity, warm, creates
+    // a bright lit hemisphere on every sphere.
+    const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
+    keyLight.position.set(-3, 4, 5);
+    scene.add(keyLight);
+
+    // Very subtle cool fill — just enough so the dark side isn't pure
+    // black, but the chiaroscuro stays obvious.
+    const fillLight = new THREE.DirectionalLight(0x4a6a9a, 0.15);
+    fillLight.position.set(4, -1, -2);
+    scene.add(fillLight);
 
     const allNodes = [];
     BRAIN_REGIONS.forEach((region) => {
@@ -814,11 +900,21 @@ export default function BrainViz() {
     const nodeMeshes = [];
     allNodes.forEach((node) => {
       const region = BRAIN_REGIONS.find((r) => r.id === node.regionId);
-      const geo = new THREE.SphereGeometry(node.baseSize, 8, 8);
-      const mat = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(region.color),
-        transparent: true,
-        opacity: 0.4,
+      // High segment count so highlights land smoothly and the silhouette
+      // reads as a true sphere, not a faceted ball.
+      const geo = new THREE.SphereGeometry(node.baseSize, 32, 32);
+      // Standard material reacts to the scene lights and also supports an
+      // emissive channel we can drive for the activation "glow." Base
+      // color is darkened so inactive nodes sit back; emissive does the
+      // heavy lifting when a region lights up.
+      const baseColor = new THREE.Color(region.color);
+      const darkBase = baseColor.clone().multiplyScalar(0.35);
+      const mat = new THREE.MeshStandardMaterial({
+        color: darkBase,
+        emissive: baseColor,
+        emissiveIntensity: 0.25,
+        roughness: 0.18,
+        metalness: 0.25,
       });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(node.x, node.y, node.z);
@@ -868,6 +964,9 @@ export default function BrainViz() {
     headDotCloud.renderOrder = 0;
     headDotCloud.position.set(0, -0.12, -0.65);
     headDotCloud.scale.setScalar(1.344);
+    // Hidden by default — only shown if the OBJ head fails to load, so the
+    // placeholder dot cloud never flashes in during the normal loading path.
+    headDotCloud.visible = false;
     brainGroup.add(headDotCloud);
 
     // Load the real head mesh from /public/models/head.obj. When it arrives,
@@ -878,13 +977,23 @@ export default function BrainViz() {
     objLoader.load(
       "/models/head.obj",
       (obj) => {
-        // Traverse all meshes in the loaded group and apply our material.
-        // BackSide rendering means only the interior-facing polygons draw,
-        // so the front of the skull is invisible and you see into the brain.
-        const headMat = new THREE.MeshBasicMaterial({
-          color: 0xaecbe8,
+        // BackSide wireframe with a broad world-Y fade: the top of the head
+        // sits at the base opacity (~0.04) and the neck/shoulders dissolve
+        // gently toward transparent, so the lower body is just a hint.
+        // uFadeStart/uFadeEnd are in the OBJ's local model-space units —
+        // measured below from the box bounds so it works regardless of the
+        // auto-fit scale.
+        const headMat = new THREE.ShaderMaterial({
+          uniforms: {
+            uColor: { value: new THREE.Color(0xaecbe8) },
+            uFadeStart: { value: 0 },
+            uFadeEnd: { value: 0 },
+            uBottomOp: { value: 0.002 },
+            uTopOp: { value: 0.045 },
+          },
+          vertexShader: HEAD_VFADE_VERTEX_SHADER,
+          fragmentShader: HEAD_VFADE_FRAGMENT_SHADER,
           transparent: true,
-          opacity: 0.04,
           wireframe: true,
           side: THREE.BackSide,
           depthWrite: false,
@@ -914,6 +1023,17 @@ export default function BrainViz() {
         const targetHeight = 4.68;
         const fitScale = targetHeight / size.y;
         obj.scale.setScalar(fitScale);
+
+        // Set the world-Y fade band for the head shader. Values are in
+        // local model-space Y because the shader reads raw `position.y`.
+        // Fade goes from the very bottom (shoulders, nearly invisible) to
+        // roughly the chin/jaw (~65% up), where the head reaches full
+        // opacity. Broad and slow by design.
+        const minY = box.min.y;
+        const maxY = box.max.y;
+        const range = maxY - minY;
+        headMat.uniforms.uFadeStart.value = minY;
+        headMat.uniforms.uFadeEnd.value = minY + range * 1.1;
         // Nudge the head so the cranium wraps the brain clusters cleanly.
         // Y: negative lift drops the skull down around the brain.
         // Z: negative shift moves the head backward so the occiput covers
@@ -930,15 +1050,68 @@ export default function BrainViz() {
         brainGroup.add(obj);
         headObjRef.current = obj;
 
-        // Hide placeholders now that the real head is in.
-        headDotCloud.visible = false;
-        if (landmarkLinesRef.current) {
-          landmarkLinesRef.current.visible = false;
-        }
+        // === Distant heads surrounding the main head ===
+        // Clones of the loaded head scattered around the primary head on
+        // its OWN plane (same Y / shoulder line), spread across a wide
+        // 360° ring so they appear in every direction as the scene rotates.
+        // Added to brainGroup so they rotate in lockstep with the main
+        // head — they always face forward with it. Uses a separate
+        // ShaderMaterial clone with dramatically reduced opacity (~15%
+        // of the main head's values) so they read as ghostly silhouettes.
+        // Battlezone-style CRT environment: ground grid + horizon line
+        // + jagged mountain silhouettes. All parented to envGroup at
+        // scene level so only Y rotation is inherited (horizon stays
+        // level regardless of brain tilt).
+        const envGroup = new THREE.Group();
+        scene.add(envGroup);
+        envGroupRef.current = envGroup;
+
+        const distantY = -13;
+        const crtGreen = 0x55ff7a;
+        const crtMatBright = new THREE.LineBasicMaterial({
+          color: crtGreen,
+          transparent: false,
+          opacity: 1,
+        });
+
+        // === Ground grid ===
+        // GridHelper gives us a square grid mapping the plane. Using the
+        // same color for both the center line and the outer cells so it
+        // reads as uniform vector-CRT lines.
+        // Grid gets a desaturated version of the CRT green so it reads
+        // as "ground" rather than competing with the horizon's vivid line.
+        const gridGreen = 0x88a894;
+        const grid = new THREE.GridHelper(120, 40, gridGreen, gridGreen);
+        grid.position.y = distantY;
+        grid.material.transparent = true;
+        grid.material.opacity = 0.27;
+        envGroup.add(grid);
+
+        // === Horizon line ===
+        // Four cardinal segments forming a square around the scene so
+        // there's always one segment across whichever way you face.
+        const horizonReach = 60;
+        const horizonCardinals = [
+          [new THREE.Vector3(-horizonReach, distantY, -horizonReach), new THREE.Vector3(horizonReach, distantY, -horizonReach)],
+          [new THREE.Vector3(-horizonReach, distantY, horizonReach), new THREE.Vector3(horizonReach, distantY, horizonReach)],
+          [new THREE.Vector3(-horizonReach, distantY, -horizonReach), new THREE.Vector3(-horizonReach, distantY, horizonReach)],
+          [new THREE.Vector3(horizonReach, distantY, -horizonReach), new THREE.Vector3(horizonReach, distantY, horizonReach)],
+        ];
+        horizonCardinals.forEach((pair) => {
+          const geo = new THREE.BufferGeometry().setFromPoints(pair);
+          const line = new THREE.Line(geo, crtMatBright);
+          line.renderOrder = 10;
+          envGroup.add(line);
+        });
+
       },
       undefined,
       (err) => {
-        console.warn("Head OBJ failed to load, keeping placeholders:", err);
+        console.warn("Head OBJ failed to load, showing placeholders:", err);
+        headDotCloud.visible = true;
+        if (landmarkLinesRef.current) {
+          landmarkLinesRef.current.visible = true;
+        }
       }
     );
 
@@ -961,6 +1134,7 @@ export default function BrainViz() {
     landmarkLines.renderOrder = 5;
     landmarkLines.position.set(0, -0.12, -0.65);
     landmarkLines.scale.setScalar(1.344);
+    landmarkLines.visible = false;
     brainGroup.add(landmarkLines);
     landmarkLinesRef.current = landmarkLines;
 
@@ -1012,11 +1186,22 @@ export default function BrainViz() {
       brainGroupRef.current.rotation.x = rotation.current.x;
       brainGroupRef.current.rotation.y = rotation.current.y;
 
+      // Environment (grid + horizon) locks to both axes of the brain's
+      // rotation so tilting forward/back carries the ground plane too.
+      if (envGroupRef.current) {
+        envGroupRef.current.rotation.x = rotation.current.x;
+        envGroupRef.current.rotation.y = rotation.current.y;
+      }
+
       // Gentle elliptical drift of the whole assembly. Non-repeating because
       // the X and Y periods are coprime, so the motion never settles into a
       // visible loop. Subtle amplitude on purpose.
       brainGroupRef.current.position.x = Math.sin(t * 0.13) * 0.18;
       brainGroupRef.current.position.y = Math.cos(t * 0.1) * 0.09;
+      // Constant z offset pushing the whole assembly (and its drift
+      // ellipse) away from the camera, so even at the closest point of
+      // the ebb the brain still clears the foreground UI.
+      brainGroupRef.current.position.z = -0.6;
 
       const nodes = nodesRef.current;
       const meshes = nodeMeshesRef.current;
@@ -1025,14 +1210,15 @@ export default function BrainViz() {
         const node = nodes[i];
         const activation = activations[node.regionId] || 0;
 
-        const baseBrightness = 0.35;
-        const activeBrightness = 0.75 + activation * 0.25;
+        // Drive the emissive "glow" instead of opacity so the lit/shadowed
+        // sides from the key light still read. Inactive = gentle idle pulse,
+        // active = bright bloom with stronger pulse.
         const pulse = Math.sin(t * 3 + node.pulseOffset) * 0.5 + 0.5;
-        const brightness = activation > 0
-          ? activeBrightness + pulse * activation * 0.2
-          : baseBrightness + pulse * 0.1;
-
-        mesh.material.opacity = brightness;
+        const baseIntensity = 0.18 + pulse * 0.08;
+        const activeIntensity =
+          0.9 + activation * 0.6 + pulse * activation * 0.5;
+        mesh.material.emissiveIntensity =
+          activation > 0 ? activeIntensity : baseIntensity;
 
         const baseScale = 1;
         const activeScale = 1 + activation * 0.8 + pulse * activation * 0.4;
@@ -1189,6 +1375,7 @@ export default function BrainViz() {
   const fontStack = "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   const displayFont = "var(--font-instrument-serif), Georgia, serif";
 
+
   return (
     <div
       style={{
@@ -1204,6 +1391,27 @@ export default function BrainViz() {
         position: "relative",
       }}
     >
+      {/* Bottom-edge bloom: a small, concentrated red on the bottom-left and
+          a broader, softer purple on the bottom-right. Pointer-events off
+          so it never intercepts clicks on the controls above it. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: "320px",
+          backgroundImage: `
+            radial-gradient(ellipse 62% 150% at 4% 108%, rgba(255,59,48,0.22) 0%, transparent 75%),
+            radial-gradient(ellipse 62% 135% at 90% 118%, rgba(155,43,255,0.144) 0%, transparent 70%)
+          `,
+          maskImage: "linear-gradient(to top, #000 0%, transparent 100%)",
+          WebkitMaskImage: "linear-gradient(to top, #000 0%, transparent 100%)",
+          pointerEvents: "none",
+          zIndex: 0,
+        }}
+      />
       <div
         style={{
           padding: "16px 24px",
@@ -1217,14 +1425,74 @@ export default function BrainViz() {
         <div style={{ display: "flex", alignItems: "baseline", gap: "20px" }}>
           <span
             style={{
+              position: "relative",
+              display: "inline-block",
               fontFamily: displayFont,
-              fontSize: "56px",
-              color: "#ffffff",
+              fontSize: "68px",
               letterSpacing: "-0.02em",
               lineHeight: 1,
             }}
           >
-            Neural Cascade
+            {/* Base layer — bottom ~10% coverage, always visible. */}
+            <span
+              className="nc-wordmark"
+              style={{
+                display: "inline-block",
+                // Oranges, yellows, and purples bumped to full alpha so they
+                // pull their weight against the reds/greens/blues.
+                backgroundImage: `
+                  radial-gradient(ellipse 25% 80% at 4% 108%, rgba(255,106,61,0.7) 0%, transparent 55%),
+                  radial-gradient(ellipse 20% 95% at 11% 92%, rgba(255,159,67,0.8) 0%, transparent 55%),
+                  radial-gradient(ellipse 28% 75% at 19% 105%, rgba(255,184,77,0.8) 0%, transparent 55%),
+                  radial-gradient(ellipse 22% 90% at 27% 88%, rgba(0,216,138,0.45) 0%, transparent 55%),
+                  radial-gradient(ellipse 25% 80% at 36% 102%, rgba(46,156,255,0.425) 0%, transparent 55%),
+                  radial-gradient(ellipse 22% 95% at 44% 90%, rgba(15,95,214,0.4) 0%, transparent 55%),
+                  radial-gradient(ellipse 25% 80% at 53% 105%, rgba(216,100,255,0.5) 0%, transparent 55%),
+                  radial-gradient(ellipse 22% 85% at 62% 90%, rgba(255,159,67,0.8) 0%, transparent 55%),
+                  radial-gradient(ellipse 25% 80% at 71% 105%, rgba(0,216,138,0.425) 0%, transparent 55%),
+                  radial-gradient(ellipse 22% 95% at 80% 88%, rgba(46,156,255,0.425) 0%, transparent 55%),
+                  radial-gradient(ellipse 25% 80% at 89% 102%, rgba(155,43,255,0.5) 0%, transparent 55%),
+                  radial-gradient(ellipse 25% 80% at 97% 90%, rgba(255,184,77,0.8) 0%, transparent 55%),
+                  linear-gradient(#ffffff, #ffffff)
+                `,
+                WebkitBackgroundClip: "text",
+                backgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                color: "transparent",
+              }}
+            >
+              Neural Cascade
+            </span>
+            {/* Bloom layer — color blooms are taller and anchored higher,
+                so they cover ~40% of each letter. Fades in/out over the
+                same 22s cycle so the wordmark "ebbs" up and back down. */}
+            <span
+              aria-hidden
+              className="nc-wordmark-bloom"
+              style={{
+                backgroundImage: `
+                  radial-gradient(ellipse 25% 110% at 4% 135%, rgba(255,59,48,0.475) 0%, transparent 60%),
+                  radial-gradient(ellipse 20% 130% at 11% 120%, rgba(255,159,67,0.5) 0%, transparent 60%),
+                  radial-gradient(ellipse 28% 110% at 19% 135%, rgba(255,184,77,0.5) 0%, transparent 60%),
+                  radial-gradient(ellipse 22% 125% at 27% 115%, rgba(0,216,138,0.475) 0%, transparent 60%),
+                  radial-gradient(ellipse 25% 115% at 36% 130%, rgba(46,156,255,0.45) 0%, transparent 60%),
+                  radial-gradient(ellipse 22% 130% at 44% 118%, rgba(15,95,214,0.425) 0%, transparent 60%),
+                  radial-gradient(ellipse 25% 115% at 53% 132%, rgba(216,100,255,0.5) 0%, transparent 60%),
+                  radial-gradient(ellipse 22% 120% at 62% 118%, rgba(255,159,67,0.5) 0%, transparent 60%),
+                  radial-gradient(ellipse 25% 115% at 71% 132%, rgba(0,216,138,0.45) 0%, transparent 60%),
+                  radial-gradient(ellipse 22% 130% at 80% 115%, rgba(46,156,255,0.45) 0%, transparent 60%),
+                  radial-gradient(ellipse 25% 115% at 89% 130%, rgba(155,43,255,0.5) 0%, transparent 60%),
+                  radial-gradient(ellipse 25% 115% at 97% 118%, rgba(255,184,77,0.5) 0%, transparent 60%),
+                  linear-gradient(transparent, transparent)
+                `,
+                WebkitBackgroundClip: "text",
+                backgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                color: "transparent",
+              }}
+            >
+              Neural Cascade
+            </span>
           </span>
           <span style={{ color: "#e8ecf2", fontSize: "15px", letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 500 }}>
             Brain Activity Visualizer
@@ -2071,36 +2339,53 @@ export default function BrainViz() {
                           display: "inline-block",
                           position: "relative",
                           flexShrink: 0,
-                          transform: isExpanded
-                            ? "rotate(90deg)"
-                            : "rotate(0deg)",
-                          transformOrigin: "center center",
-                          transition: "transform 0.2s ease",
                         }}
                         aria-hidden="true"
                       >
+                        {/* Horizontal bar — always visible. The bars are
+                            insetted so the icon occupies an 18px box (which
+                            keeps alignment with the group subtitle below)
+                            while the actual glyph stays visually ~14px. */}
                         <span
                           style={{
                             position: "absolute",
                             top: "50%",
+                            left: "2px",
+                            right: "2px",
+                            height: "2px",
+                            marginTop: "-1px",
+                            background: "#7d8ba8",
+                            borderRadius: "1px",
+                          }}
+                        />
+                        {/* Vertical bar — rotates 90° on expand so it lies
+                            flat over the horizontal, turning + into −. */}
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: "2px",
+                            bottom: "2px",
                             left: "50%",
-                            width: 0,
-                            height: 0,
-                            marginTop: "-8px",
-                            marginLeft: "-5px",
-                            borderTop: "8px solid transparent",
-                            borderBottom: "8px solid transparent",
-                            borderLeft: "11px solid #e0e4ea",
+                            width: "2px",
+                            marginLeft: "-1px",
+                            background: "#7d8ba8",
+                            borderRadius: "1px",
+                            transform: isExpanded
+                              ? "rotate(90deg)"
+                              : "rotate(0deg)",
+                            transformOrigin: "center center",
+                            transition: "transform 0.25s ease",
                           }}
                         />
                       </span>
                       <span
                         style={{
-                          color: groupAnyActive ? "#ffffff" : "#f0f3f8",
+                          color: groupAnyActive ? "#ffffff" : "#7d8ba8",
                           fontSize: "14px",
                           fontWeight: 600,
                           letterSpacing: "-0.01em",
                           flex: 1,
+                          transition: "color 0.3s ease",
                         }}
                       >
                         {group.label}
@@ -2200,7 +2485,7 @@ export default function BrainViz() {
                               />
                               <span
                                 style={{
-                                  color: act > 0 ? region.color : "#e0e4ea",
+                                  color: act > 0 ? region.color : "#7d8ba8",
                                   fontSize: "14px",
                                   fontWeight: 500,
                                   transition: "color 0.5s ease",
@@ -2254,7 +2539,7 @@ export default function BrainViz() {
                             </div>
                             <div
                               style={{
-                                color: "#b0b8c8",
+                                color: "#7d8ba8",
                                 fontSize: "13px",
                                 marginTop: "5px",
                                 lineHeight: 1.4,
@@ -2310,7 +2595,7 @@ export default function BrainViz() {
               flexShrink: 0,
             }}
           >
-            STATE
+            ALTERED STATES
           </span>
           <div style={{ display: "flex", gap: "6px" }}>
             {MODIFIERS.map((mod) => (
@@ -2366,40 +2651,71 @@ export default function BrainViz() {
               style={{
                 display: "flex",
                 alignItems: "stretch",
-                background: "rgba(255,255,255,0.04)",
-                border: "2px solid rgba(255,255,255,0.55)",
-                borderRadius: "14px",
-                overflow: "hidden",
+                position: "relative",
               }}
             >
-              <textarea
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    processScenario();
-                  }
-                }}
-                placeholder="Describe a scenario… e.g. 'Someone throws a baseball at me'"
-                rows={2}
+              {/* Frosted dark glass panel per the glass-field-dev-spec:
+                  - Dark tinted fill (~65% opacity)
+                  - backdrop-filter blurs whatever is behind it (the red +
+                    purple bottom-edge blooms show through softly)
+                  - Thin bright border
+                  - Diagonal light sweep from upper-left via backgroundImage
+                  - 1px top + left edge highlights via inset box-shadow */}
+              <div
                 style={{
                   flex: 1,
-                  background: "transparent",
-                  border: "none",
-                  padding: "14px 18px",
-                  color: "#ffffff",
-                  fontFamily: fontStack,
-                  fontSize: "16px",
-                  outline: "none",
-                  resize: "none",
-                  lineHeight: 1.4,
+                  position: "relative",
+                  zIndex: 1,
+                  backgroundImage: `
+                    linear-gradient(160deg,
+                      rgba(255, 255, 255, 0.09) 0%,
+                      rgba(255, 255, 255, 0.02) 25%,
+                      transparent 50%
+                    )
+                  `,
+                  backdropFilter: "blur(30px) saturate(1.2)",
+                  WebkitBackdropFilter: "blur(30px) saturate(1.2)",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  borderRadius: "14px 0 0 14px",
+                  overflow: "hidden",
+                  boxShadow:
+                    "inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 1px 0 0 rgba(255, 255, 255, 0.06)",
                 }}
-              />
+              >
+                <textarea
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      processScenario();
+                    }
+                  }}
+                  placeholder="Describe a scenario… e.g. 'Someone throws me a baseball' or of course, 'Trying to remember where I parked'"
+                  rows={2}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    background: "transparent",
+                    border: "none",
+                    padding: "14px 44px 14px 18px",
+                    color: "#ffffff",
+                    fontFamily: fontStack,
+                    fontSize: "16px",
+                    outline: "none",
+                    resize: "none",
+                    lineHeight: 1.4,
+                    textShadow: "1px 1px 2px rgba(12, 14, 22, 0.85)",
+                  }}
+                />
+              </div>
               <button
                 onClick={processScenario}
                 disabled={isProcessing || !inputText.trim()}
                 style={{
+                  position: "relative",
+                  zIndex: 2,
+                  marginLeft: "-1px",
                   background: isProcessing || !inputText.trim()
                     ? "rgba(255,255,255,0.3)"
                     : "#ffffff",
@@ -2421,6 +2737,7 @@ export default function BrainViz() {
                   gap: "8px",
                   flexShrink: 0,
                   transition: "background 0.2s ease",
+                  borderRadius: "0 14px 14px 0",
                 }}
               >
                 {isProcessing ? "PROCESSING" : "RUN SCENARIO"}
@@ -2457,7 +2774,7 @@ export default function BrainViz() {
                   background: "transparent",
                   border: "1px solid rgba(255,255,255,0.14)",
                   color: "#c0c8d8",
-                  padding: "6px 14px",
+                  padding: "6px 42px",
                   borderRadius: "14px",
                   cursor: "pointer",
                   fontFamily: fontStack,
