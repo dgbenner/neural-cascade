@@ -604,27 +604,35 @@ export default function BrainViz() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [scenarioText, setScenarioText] = useState("");
   const [callouts, setCallouts] = useState([]);
-  const [showLegend, setShowLegend] = useState(true);
-  const [userToggledLegend, setUserToggledLegend] = useState(false);
+  const LEGEND_BREAKPOINT = 1100;
+  const [windowWide, setWindowWide] = useState(true);
+  const [manualOverride, setManualOverride] = useState(null);
 
-  // Auto-collapse the guide when the viewport is too narrow for both the
-  // brain scene and the 340px panel to coexist comfortably. Once the user
-  // manually toggles it (either direction), we stop auto-managing so we
-  // don't fight them on resize.
+  // Track the viewport width. When the window is too narrow for both the
+  // brain scene and the 340px panel to coexist, the guide force-closes.
   useEffect(() => {
-    if (userToggledLegend) return;
-    const check = () => {
-      if (typeof window === "undefined") return;
-      setShowLegend(window.innerWidth >= 980);
-    };
+    if (typeof window === "undefined") return;
+    const check = () => setWindowWide(window.innerWidth >= LEGEND_BREAKPOINT);
     check();
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
-  }, [userToggledLegend]);
+  }, []);
+
+  // If the user toggles manually, remember it, but clear the override when
+  // they cross the breakpoint in either direction so resize keeps winning.
+  const prevWideRef = useRef(true);
+  useEffect(() => {
+    if (prevWideRef.current !== windowWide) {
+      setManualOverride(null);
+    }
+    prevWideRef.current = windowWide;
+  }, [windowWide]);
+
+  // Effective state: manual override if set, otherwise auto from width.
+  const showLegend = manualOverride !== null ? manualOverride : windowWide;
 
   const toggleLegend = useCallback((next) => {
-    setUserToggledLegend(true);
-    setShowLegend(next);
+    setManualOverride(next);
   }, []);
   const [stepDuration, setStepDuration] = useState(3000);
   const [errorMsg, setErrorMsg] = useState("");
@@ -1288,8 +1296,8 @@ export default function BrainViz() {
       </div>
       )}
 
-      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        <div style={{ flex: 1, position: "relative" }}>
+      <div style={{ display: "flex", flex: 1, overflow: "hidden", minWidth: 0 }}>
+        <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
           <div
             ref={mountRef}
             style={{ width: "100%", height: "100%", cursor: "grab" }}
