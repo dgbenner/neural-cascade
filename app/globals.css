@@ -115,3 +115,53 @@ a {
   50%  { opacity: 1; }
   100% { opacity: 0; }
 }
+
+/* Three-dot brain-color spinner. Each dot orbits the center on its own
+   stop-and-go animation. The orbit pattern is rotate(angle) → translate
+   outward → counter-rotate(-angle), which lets each dot travel the
+   circular path while its own local coordinate system stays upright —
+   so the radial-gradient highlight appears fixed to screen-up no matter
+   where the dot is in its orbit. */
+.nc-spinner {
+  position: relative;
+  width: 38px;
+  height: 38px;
+}
+
+.nc-spinner-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+}
+
+.nc-spinner-dot:nth-child(1) {
+  animation: nc-spinner-orbit-1 2.4s ease-in-out infinite;
+}
+.nc-spinner-dot:nth-child(2) {
+  animation: nc-spinner-orbit-2 2.4s ease-in-out infinite;
+}
+.nc-spinner-dot:nth-child(3) {
+  animation: nc-spinner-orbit-3 2.4s ease-in-out infinite;
+}
+
+@keyframes nc-spinner-orbit-1 {
+  0%, 20%   { transform: rotate(0deg)   translate(0, -13px) rotate(0deg);   }
+  50%, 70%  { transform: rotate(180deg) translate(0, -13px) rotate(-180deg); }
+  100%      { transform: rotate(360deg) translate(0, -13px) rotate(-360deg); }
+}
+
+@keyframes nc-spinner-orbit-2 {
+  0%, 20%   { transform: rotate(120deg) translate(0, -13px) rotate(-120deg); }
+  50%, 70%  { transform: rotate(300deg) translate(0, -13px) rotate(-300deg); }
+  100%      { transform: rotate(480deg) translate(0, -13px) rotate(-480deg); }
+}
+
+@keyframes nc-spinner-orbit-3 {
+  0%, 20%   { transform: rotate(240deg) translate(0, -13px) rotate(-240deg); }
+  50%, 70%  { transform: rotate(420deg) translate(0, -13px) rotate(-420deg); }
+  100%      { transform: rotate(600deg) translate(0, -13px) rotate(-600deg); }
+}

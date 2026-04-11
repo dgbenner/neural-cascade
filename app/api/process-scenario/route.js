@@ -62,7 +62,7 @@ Respond ONLY with a JSON array of activation steps in temporal order. Each step 
 
 [
   {
-    "time_label": "0-100ms",
+    "time_label": "0 – 0.1 seconds",
     "description": "Brief description of what's happening neurally",
     "regions": {
       "region_id": { "intensity": 0.0-1.0, "reason": "why this region activates" }
@@ -70,7 +70,11 @@ Respond ONLY with a JSON array of activation steps in temporal order. Each step 
   }
 ]
 
-Include 4-8 steps showing the cascade of neural activity. Include baseline/always-on regions (like brainstem) at low intensity. Be specific about WHY each region activates for this particular scenario. No markdown, no backticks, just JSON.`;
+Include 4-8 steps showing the cascade of neural activity. Include baseline/always-on regions (like brainstem) at low intensity. Be specific about WHY each region activates for this particular scenario.
+
+CRITICAL: Always express time_label in SECONDS, fully spelled out, with spaces around the en-dash. Use the format "X – Y seconds". Examples: "0 – 0.1 seconds", "0.1 – 0.3 seconds", "0.3 – 0.8 seconds", "0.8 – 1.5 seconds", "1.5 – 3 seconds". Never use "ms", never use "s" as an abbreviation, never use milliseconds.
+
+No markdown, no backticks, just JSON.`;
 
   try {
     const upstream = await fetch("https://api.anthropic.com/v1/messages", {
@@ -82,7 +86,7 @@ Include 4-8 steps showing the cascade of neural activity. Include baseline/alway
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-5",
-        max_tokens: 1500,
+        max_tokens: 2500,
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -102,9 +106,23 @@ Include 4-8 steps showing the cascade of neural activity. Include baseline/alway
       .join("");
 
     const cleaned = text.replace(/```json|```/g, "").trim();
-    const steps = JSON.parse(cleaned);
-    return Response.json({ steps });
+    try {
+      const steps = JSON.parse(cleaned);
+      return Response.json({ steps });
+    } catch (parseErr) {
+      console.error("[process-scenario] JSON parse failed:", parseErr);
+      console.error("[process-scenario] raw model output:", cleaned);
+      return Response.json(
+        {
+          error: "Model returned invalid JSON",
+          detail: String(parseErr),
+          raw: cleaned.slice(0, 800),
+        },
+        { status: 500 }
+      );
+    }
   } catch (err) {
+    console.error("[process-scenario] unexpected error:", err);
     return Response.json(
       { error: "Failed to process scenario", detail: String(err) },
       { status: 500 }
