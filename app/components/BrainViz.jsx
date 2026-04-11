@@ -2229,6 +2229,7 @@ export default function BrainViz() {
                   transition: "background 0.2s ease",
                 }}
               >
+                {isProcessing ? "PROCESSING" : "RUN SCENARIO"}
                 <span
                   style={{
                     display: "inline-flex",
@@ -2246,14 +2247,13 @@ export default function BrainViz() {
                 >
                   ↑
                 </span>
-                {isProcessing ? "PROCESSING" : "RUN SCENARIO"}
               </button>
             </div>
 
             <div
               style={{
                 display: "flex",
-                justifyContent: "flex-end",
+                justifyContent: "center",
                 marginTop: "8px",
               }}
             >
