@@ -1004,21 +1004,292 @@ export default function BrainViz() {
             Brain Activity Visualizer
           </span>
         </div>
-        <button
-          onClick={() => setShowLegend(!showLegend)}
+        {!showLegend && (
+          <button
+            onClick={() => setShowLegend(true)}
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: "#c0c8d8",
+              padding: "6px 14px",
+              borderRadius: "14px",
+              cursor: "pointer",
+              fontFamily: fontStack,
+              fontSize: "12px",
+              fontWeight: 500,
+              letterSpacing: "0.04em",
+            }}
+          >
+            Open Brain Region Guide
+          </button>
+        )}
+      </div>
+
+      {/* Persistent white header row spanning the viewport + legend columns.
+          Left column: scenario label / playback controls / processing info.
+          Right column: Brain Region Guide label, centered over the legend. */}
+      <div
+        style={{
+          display: "flex",
+          background: "#ffffff",
+          borderBottom: "1px solid rgba(255,255,255,0.12)",
+          flexShrink: 0,
+        }}
+      >
+        <div
           style={{
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            color: "#c0c8d8",
-            padding: "4px 12px",
-            borderRadius: "4px",
-            cursor: "pointer",
-            fontFamily: fontStack,
-            fontSize: "14px",
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            gap: "16px",
+            padding: "10px 24px",
+            minHeight: "46px",
           }}
         >
-          {showLegend ? "HIDE" : "SHOW"} LEGEND
-        </button>
+          <div
+            style={{
+              flex: 1,
+              minWidth: 0,
+              fontSize: "14px",
+              lineHeight: 1.4,
+              letterSpacing: "-0.005em",
+              fontFamily: fontStack,
+            }}
+          >
+            <span style={{ color: "#8a95a8", fontWeight: 500 }}>
+              Running scenario:
+            </span>{" "}
+            <span style={{ color: "#0a0a12", fontWeight: 600 }}>
+              {scenarioText || "—"}
+            </span>
+          </div>
+          {isProcessing && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                flexShrink: 0,
+                paddingLeft: "16px",
+                borderLeft: "1px solid rgba(10,10,18,0.15)",
+              }}
+            >
+              <span
+                style={{
+                  color: "#0a0a12",
+                  fontSize: "11px",
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  fontWeight: 700,
+                  opacity: 0.7,
+                }}
+              >
+                PROCESSING{".".repeat(processingDots)}
+              </span>
+              <span
+                style={{
+                  color: "#0a0a12",
+                  fontSize: "11px",
+                  opacity: 0.45,
+                  fontWeight: 500,
+                }}
+              >
+                (approx. 15 sec)
+              </span>
+            </div>
+          )}
+          {activationSteps.length > 0 && !isProcessing && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                flexShrink: 0,
+                paddingLeft: "14px",
+                borderLeft: "1px solid rgba(10,10,18,0.15)",
+              }}
+            >
+              <button
+                onClick={togglePlay}
+                aria-label={isPlaying ? "Pause" : "Play"}
+                style={{
+                  background: "#0a0a12",
+                  border: "none",
+                  color: "#ffffff",
+                  width: "26px",
+                  height: "26px",
+                  borderRadius: "50%",
+                  cursor: "pointer",
+                  fontFamily: fontStack,
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 0,
+                  lineHeight: 1,
+                }}
+              >
+                {isPlaying ? (
+                  <span style={{ display: "flex", gap: "2px" }}>
+                    <span style={{ width: "3px", height: "10px", background: "#ffffff", display: "inline-block" }} />
+                    <span style={{ width: "3px", height: "10px", background: "#ffffff", display: "inline-block" }} />
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      width: 0,
+                      height: 0,
+                      borderTop: "6px solid transparent",
+                      borderBottom: "6px solid transparent",
+                      borderLeft: "9px solid #ffffff",
+                      marginLeft: "2px",
+                    }}
+                  />
+                )}
+              </button>
+
+              <div style={{ display: "flex", gap: "3px", alignItems: "center" }}>
+                {activationSteps.map((step, i) => {
+                  const isCurrent = i === currentStep;
+                  const isPast = i < currentStep;
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        setIsPlaying(false);
+                        goToStep(i);
+                      }}
+                      style={{
+                        width: isCurrent ? "18px" : "6px",
+                        height: "6px",
+                        borderRadius: "3px",
+                        background: isCurrent
+                          ? "#0a0a12"
+                          : isPast
+                          ? "rgba(10,10,18,0.45)"
+                          : "rgba(10,10,18,0.15)",
+                        border: "none",
+                        cursor: "pointer",
+                        transition: "all 0.3s ease",
+                        padding: 0,
+                      }}
+                      title={step.time_label}
+                      aria-label={`Step ${i + 1}`}
+                    />
+                  );
+                })}
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "4px" }}>
+                <span
+                  style={{
+                    color: "#0a0a12",
+                    fontSize: "9px",
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    fontWeight: 700,
+                    opacity: 0.45,
+                    marginRight: "2px",
+                  }}
+                >
+                  SPEED
+                </span>
+                {[0.5, 1, 2, 4].map((speed) => {
+                  const isActive = playbackSpeed === speed;
+                  return (
+                    <button
+                      key={speed}
+                      onClick={() => setPlaybackSpeed(speed)}
+                      style={{
+                        background: isActive ? "#0a0a12" : "transparent",
+                        border: `1px solid ${isActive ? "#0a0a12" : "rgba(10,10,18,0.25)"}`,
+                        color: isActive ? "#ffffff" : "#0a0a12",
+                        padding: "2px 6px",
+                        borderRadius: "3px",
+                        cursor: "pointer",
+                        fontFamily: fontStack,
+                        fontSize: "10px",
+                        fontWeight: 600,
+                        lineHeight: 1,
+                        minWidth: "26px",
+                      }}
+                    >
+                      {speed}×
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <span
+                  style={{
+                    color: "#0a0a12",
+                    fontSize: "9px",
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    fontWeight: 700,
+                    opacity: 0.45,
+                    marginRight: "2px",
+                  }}
+                >
+                  DUR
+                </span>
+                {[1500, 3000, 5000, 8000].map((dur) => {
+                  const isActive = stepDuration === dur;
+                  return (
+                    <button
+                      key={dur}
+                      onClick={() => setStepDuration(dur)}
+                      style={{
+                        background: isActive ? "#0a0a12" : "transparent",
+                        border: `1px solid ${isActive ? "#0a0a12" : "rgba(10,10,18,0.25)"}`,
+                        color: isActive ? "#ffffff" : "#0a0a12",
+                        padding: "2px 6px",
+                        borderRadius: "3px",
+                        cursor: "pointer",
+                        fontFamily: fontStack,
+                        fontSize: "10px",
+                        fontWeight: 600,
+                        lineHeight: 1,
+                        minWidth: "26px",
+                      }}
+                    >
+                      {dur / 1000}s
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {showLegend && (
+          <div
+            style={{
+              width: "340px",
+              flexShrink: 0,
+              borderLeft: "1px solid rgba(10,10,18,0.08)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "10px 16px",
+              minHeight: "46px",
+            }}
+          >
+            <span
+              style={{
+                color: "#0a0a12",
+                fontSize: "12px",
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                fontWeight: 700,
+              }}
+            >
+              Brain Region Guide
+            </span>
+          </div>
+        )}
       </div>
 
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
@@ -1035,7 +1306,7 @@ export default function BrainViz() {
             onTouchEnd={handlePointerUp}
           />
 
-          {(scenarioText || isProcessing) && (
+          {false && (
             <div
               style={{
                 position: "absolute",
@@ -1469,16 +1740,32 @@ export default function BrainViz() {
           >
             <div
               style={{
-                color: "#e0e4ea",
-                fontSize: "12px",
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                fontWeight: 600,
-                marginBottom: "16px",
-                paddingLeft: "2px",
+                display: "flex",
+                justifyContent: "flex-end",
+                marginBottom: "12px",
               }}
             >
-              Brain Regions
+              <button
+                onClick={() => setShowLegend(false)}
+                aria-label="Close guide"
+                style={{
+                  background: "transparent",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  color: "#c0c8d8",
+                  padding: "4px 10px",
+                  borderRadius: "12px",
+                  cursor: "pointer",
+                  fontFamily: fontStack,
+                  fontSize: "11px",
+                  fontWeight: 500,
+                  letterSpacing: "0.04em",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                }}
+              >
+                Close Guide <span aria-hidden="true">✕</span>
+              </button>
             </div>
             {REGION_GROUPS.map((group) => {
               const groupRegions = group.regionIds
