@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import * as THREE from "three";
+import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 
 const BRAIN_REGIONS = [
   {
@@ -650,6 +651,8 @@ const EXAMPLE_SCENARIOS = [
 export default function BrainViz() {
   const mountRef = useRef(null);
   const resizeBrainRef = useRef(null);
+  const headObjRef = useRef(null);
+  const landmarkLinesRef = useRef(null);
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
   const rendererRef = useRef(null);
@@ -867,6 +870,62 @@ export default function BrainViz() {
     headDotCloud.scale.setScalar(1.344);
     brainGroup.add(headDotCloud);
 
+    // Load the real head mesh from /public/models/head.obj. When it arrives,
+    // hide the placeholder dot cloud and landmark lines so we're only seeing
+    // the real head. If loading fails, the placeholders stay visible so the
+    // scene never looks empty.
+    const objLoader = new OBJLoader();
+    objLoader.load(
+      "/models/head.obj",
+      (obj) => {
+        // Traverse all meshes in the loaded group and apply our material.
+        // BackSide rendering means only the interior-facing polygons draw,
+        // so the front of the skull is invisible and you see into the brain.
+        const headMat = new THREE.MeshBasicMaterial({
+          color: 0xaecbe8,
+          transparent: true,
+          opacity: 0.35,
+          wireframe: true,
+          side: THREE.BackSide,
+          depthWrite: false,
+        });
+        obj.traverse((child) => {
+          if (child.isMesh) {
+            child.material = headMat;
+          }
+        });
+
+        // Auto-fit the model to our coordinate space. The brain nodes span
+        // about 2.4 units in the y axis; we scale the model to match and
+        // then let the user tune with the magic numbers below.
+        const box = new THREE.Box3().setFromObject(obj);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const targetHeight = 2.6;
+        const fitScale = targetHeight / size.y;
+        obj.scale.setScalar(fitScale);
+        obj.position.set(
+          -center.x * fitScale,
+          -center.y * fitScale,
+          -center.z * fitScale
+        );
+
+        obj.renderOrder = 0;
+        brainGroup.add(obj);
+        headObjRef.current = obj;
+
+        // Hide placeholders now that the real head is in.
+        headDotCloud.visible = false;
+        if (landmarkLinesRef.current) {
+          landmarkLinesRef.current.visible = false;
+        }
+      },
+      undefined,
+      (err) => {
+        console.warn("Head OBJ failed to load, keeping placeholders:", err);
+      }
+    );
+
     const landmarkPairs = buildFacialLandmarkPairs();
     const landmarkGeo = new THREE.BufferGeometry().setFromPoints(landmarkPairs);
     const landmarkMat = new THREE.ShaderMaterial({
@@ -887,6 +946,7 @@ export default function BrainViz() {
     landmarkLines.position.set(0, -0.12, -0.65);
     landmarkLines.scale.setScalar(1.344);
     brainGroup.add(landmarkLines);
+    landmarkLinesRef.current = landmarkLines;
 
     const handleResize = () => {
       if (!mountRef.current) return;
@@ -1726,6 +1786,30 @@ export default function BrainViz() {
               )}
             </div>
           )}
+
+          {/* Model attribution — CC-BY 4.0 requires visible credit. Kept
+              small, dim, and in the bottom-right so it doesn't compete with
+              the brain scene but is always visible. */}
+          <a
+            href="https://creativecommons.org/licenses/by/4.0/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              position: "absolute",
+              bottom: "6px",
+              right: "10px",
+              color: "#6a7a90",
+              fontSize: "10px",
+              letterSpacing: "0.04em",
+              fontFamily: fontStack,
+              textDecoration: "none",
+              opacity: 0.7,
+              zIndex: 5,
+              pointerEvents: "auto",
+            }}
+          >
+            Head model: male_base by Hedy Magroun · CC BY 4.0
+          </a>
 
           {callouts.length > 0 && (
             <div
