@@ -1044,37 +1044,39 @@ export default function BrainViz() {
                 right: "0",
                 background: "#ffffff",
                 borderBottom: "1px solid rgba(255,255,255,0.15)",
-                padding: "18px 32px",
+                padding: "10px 24px",
                 display: "flex",
                 alignItems: "center",
-                gap: "20px",
+                gap: "16px",
                 zIndex: 10,
               }}
             >
-              <span
-                style={{
-                  color: "#0a0a12",
-                  fontSize: "11px",
-                  letterSpacing: "0.14em",
-                  textTransform: "uppercase",
-                  fontWeight: 700,
-                  flexShrink: 0,
-                  opacity: 0.55,
-                }}
-              >
-                SCENARIO
-              </span>
               <div
                 style={{
-                  color: "#0a0a12",
-                  fontSize: "20px",
-                  fontWeight: 500,
-                  lineHeight: 1.3,
                   flex: 1,
-                  letterSpacing: "-0.01em",
+                  minWidth: 0,
+                  fontSize: "14px",
+                  lineHeight: 1.4,
+                  letterSpacing: "-0.005em",
+                  fontFamily: fontStack,
                 }}
               >
-                {scenarioText || "—"}
+                <span
+                  style={{
+                    color: "#0a0a12",
+                    fontWeight: 700,
+                  }}
+                >
+                  Running scenario:
+                </span>{" "}
+                <span
+                  style={{
+                    color: "#4a5568",
+                    fontWeight: 500,
+                  }}
+                >
+                  {scenarioText || "—"}
+                </span>
               </div>
               {activeModifier && (
                 <div
