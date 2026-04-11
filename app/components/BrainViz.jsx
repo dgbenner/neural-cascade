@@ -579,6 +579,7 @@ const EXAMPLE_SCENARIOS = [
 
 export default function BrainViz() {
   const mountRef = useRef(null);
+  const resizeBrainRef = useRef(null);
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
   const rendererRef = useRef(null);
@@ -634,6 +635,17 @@ export default function BrainViz() {
   const toggleLegend = useCallback((next) => {
     setManualOverride(next);
   }, []);
+
+  // When the guide opens or closes, the brain viewport's width changes. Ask
+  // the Three.js renderer to re-measure so the canvas doesn't hold the flex
+  // layout open with a stale pixel size.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const id = window.requestAnimationFrame(() => {
+      if (resizeBrainRef.current) resizeBrainRef.current();
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [showLegend]);
   const [stepDuration, setStepDuration] = useState(3000);
   const [errorMsg, setErrorMsg] = useState("");
   const [groupOverride, setGroupOverride] = useState({});
@@ -786,15 +798,24 @@ export default function BrainViz() {
       if (!mountRef.current) return;
       const w = mountRef.current.clientWidth;
       const h = mountRef.current.clientHeight;
+      if (w === 0 || h === 0) return;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
+      renderer.setSize(w, h, false);
     };
     window.addEventListener("resize", handleResize);
+    resizeBrainRef.current = handleResize;
+
+    // Use ResizeObserver on the mount element so the canvas reflows whenever
+    // its parent container changes size — even when the window itself didn't
+    // resize (e.g. legend panel opening/closing reshuffles the flex layout).
+    const ro = new ResizeObserver(() => handleResize());
+    ro.observe(mountRef.current);
 
     const mountEl = mountRef.current;
     return () => {
       window.removeEventListener("resize", handleResize);
+      ro.disconnect();
       cancelAnimationFrame(frameRef.current);
       if (mountEl && renderer.domElement && mountEl.contains(renderer.domElement)) {
         mountEl.removeChild(renderer.domElement);
