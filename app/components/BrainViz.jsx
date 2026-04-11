@@ -884,7 +884,7 @@ export default function BrainViz() {
         const headMat = new THREE.MeshBasicMaterial({
           color: 0xaecbe8,
           transparent: true,
-          opacity: 0.07,
+          opacity: 0.04,
           wireframe: true,
           side: THREE.BackSide,
           depthWrite: false,
@@ -1011,6 +1011,12 @@ export default function BrainViz() {
 
       brainGroupRef.current.rotation.x = rotation.current.x;
       brainGroupRef.current.rotation.y = rotation.current.y;
+
+      // Gentle elliptical drift of the whole assembly. Non-repeating because
+      // the X and Y periods are coprime, so the motion never settles into a
+      // visible loop. Subtle amplitude on purpose.
+      brainGroupRef.current.position.x = Math.sin(t * 0.13) * 0.18;
+      brainGroupRef.current.position.y = Math.cos(t * 0.1) * 0.09;
 
       const nodes = nodesRef.current;
       const meshes = nodeMeshesRef.current;
