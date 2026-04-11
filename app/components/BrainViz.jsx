@@ -37,7 +37,7 @@ const BRAIN_REGIONS = [
     name: "Temporal Lobe (Left)",
     description: "Language comprehension, verbal memory, speech processing",
     color: "#2E9CFF",
-    basePos: { x: -0.75, y: -0.1, z: 0.1 },
+    basePos: { x: -0.6, y: -0.1, z: 0.1 },
     clusterRadius: 0.25,
     nodeCount: 12,
   },
@@ -46,7 +46,7 @@ const BRAIN_REGIONS = [
     name: "Temporal Lobe (Right)",
     description: "Music perception, face recognition, emotional memory",
     color: "#5BD4FF",
-    basePos: { x: 0.75, y: -0.1, z: 0.1 },
+    basePos: { x: 0.6, y: -0.1, z: 0.1 },
     clusterRadius: 0.25,
     nodeCount: 12,
   },
@@ -55,7 +55,7 @@ const BRAIN_REGIONS = [
     name: "Occipital Lobe",
     description: "Visual processing, color recognition, spatial orientation",
     color: "#0F5FD6",
-    basePos: { x: 0, y: 0.2, z: -0.85 },
+    basePos: { x: 0, y: 0.2, z: -0.77 },
     clusterRadius: 0.25,
     nodeCount: 14,
   },
@@ -63,8 +63,8 @@ const BRAIN_REGIONS = [
     id: "cerebellum",
     name: "Cerebellum",
     description: "Motor coordination, balance, timing, procedural memory",
-    color: "#10AC84",
-    basePos: { x: 0, y: -0.55, z: -0.7 },
+    color: "#4ED968",
+    basePos: { x: 0, y: -0.55, z: -0.63 },
     clusterRadius: 0.3,
     nodeCount: 16,
   },
@@ -72,8 +72,8 @@ const BRAIN_REGIONS = [
     id: "brainstem",
     name: "Brain Stem",
     description: "Breathing, heart rate, consciousness, sleep/wake cycles",
-    color: "#0A7D5E",
-    basePos: { x: 0, y: -0.8, z: -0.3 },
+    color: "#8FD649",
+    basePos: { x: 0, y: -0.8, z: -0.27 },
     clusterRadius: 0.15,
     nodeCount: 8,
   },
@@ -99,7 +99,7 @@ const BRAIN_REGIONS = [
     id: "thalamus",
     name: "Thalamus",
     description: "Sensory relay station, attention regulation, consciousness",
-    color: "#00D88A",
+    color: "#00E5A8",
     basePos: { x: 0, y: 0.0, z: 0.0 },
     clusterRadius: 0.12,
     nodeCount: 8,
@@ -255,9 +255,9 @@ const MODIFIERS = [
     },
   },
   {
-    id: "cannabis",
-    name: "Cannabis (THC)",
-    shortName: "Cannabis",
+    id: "thc",
+    name: "THC",
+    shortName: "THC",
     description:
       "CB1 receptors engaged. Sensory enhancement, time dilation, working memory dulled, emotional reactivity shifted.",
     color: "#6DE38A",
@@ -290,9 +290,140 @@ const MODIFIERS = [
       cerebellum: 1.15,
     },
   },
+  {
+    id: "lsd",
+    name: "LSD",
+    shortName: "LSD",
+    description:
+      "5-HT2A agonism. Cross-modal sensory blending, dissolved self-other boundaries, default mode network unraveled.",
+    color: "#C6A0FF",
+    baselineOffsets: {
+      prefrontal: 0.05,
+      frontal: 0.05,
+      parietal: 0.18,
+      temporal_left: 0.12,
+      temporal_right: 0.18,
+      thalamus: 0.2,
+      brainstem: 0.05,
+      motor_cortex: 0.0,
+      amygdala: 0.1,
+      hippocampus: 0.05,
+      occipital: 0.25,
+      cerebellum: 0.05,
+    },
+    regionMultipliers: {
+      prefrontal: 0.7,
+      frontal: 0.85,
+      parietal: 1.4,
+      temporal_left: 1.3,
+      temporal_right: 1.5,
+      thalamus: 1.5,
+      brainstem: 1.0,
+      motor_cortex: 0.95,
+      amygdala: 1.2,
+      hippocampus: 1.0,
+      occipital: 1.6,
+      cerebellum: 1.05,
+    },
+  },
+  {
+    id: "alcohol",
+    name: "Alcohol",
+    shortName: "Alcohol",
+    description:
+      "GABA potentiated, glutamate suppressed. Cortical inhibition lifted, motor + balance dulled, judgment relaxed.",
+    color: "#FFC97A",
+    baselineOffsets: {
+      prefrontal: -0.15,
+      frontal: -0.1,
+      parietal: -0.05,
+      temporal_left: -0.05,
+      temporal_right: 0.0,
+      thalamus: -0.05,
+      brainstem: -0.02,
+      motor_cortex: -0.1,
+      amygdala: 0.05,
+      hippocampus: -0.15,
+      occipital: -0.05,
+      cerebellum: -0.18,
+    },
+    regionMultipliers: {
+      prefrontal: 0.45,
+      frontal: 0.6,
+      parietal: 0.85,
+      temporal_left: 0.85,
+      temporal_right: 0.9,
+      thalamus: 0.85,
+      brainstem: 0.95,
+      motor_cortex: 0.65,
+      amygdala: 1.1,
+      hippocampus: 0.5,
+      occipital: 0.9,
+      cerebellum: 0.55,
+    },
+  },
 ];
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
+
+// Crude but instant scenario summarizer used by the loading toast.
+// Strips out filler / function words, takes the first few significant
+// content words, and title-cases the result. The goal is a 2–4 word
+// label that reads as "we got the gist" before the slow LLM response
+// arrives — e.g. "I'm meditating in complete silence" → "Meditating
+// Complete Silence". Imperfect but feels responsive and signals intent.
+const SCENARIO_STOP_WORDS = new Set([
+  "i", "im", "ive", "the", "a", "an", "and", "or", "of", "in", "on",
+  "at", "to", "for", "with", "as", "is", "are", "was", "were", "be",
+  "been", "being", "my", "me", "myself", "mine", "your", "you", "very",
+  "really", "just", "again", "still", "also", "even", "yet", "into",
+  "onto", "from", "by", "about", "out", "up", "down", "off", "over",
+  "under", "but", "so", "that", "this", "these", "those", "it", "its",
+  "had", "has", "have", "do", "does", "did", "not",
+]);
+
+function summarizeScenario(text) {
+  if (!text) return "";
+  const words = text
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .split(/[\s,.!?;:]+/)
+    .filter(Boolean);
+  const kept = words.filter((w) => !SCENARIO_STOP_WORDS.has(w));
+  const slice = kept.length > 0 ? kept.slice(0, 4) : words.slice(0, 4);
+  return slice
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+// Per-region target colors used by the brain dot animation. Three states:
+//   resting     — no scenario loaded, baseline mid-shaded look
+//   active      — region IS in the current step, brighter and vivid
+//   desaturated — region is NOT in the current step, greyer and duller
+// Module-level so both the scene-init effect and the animation effect
+// can reference them without re-running closures.
+const REGION_RESTING_COLORS = {};
+const REGION_ACTIVE_COLORS = {};
+const REGION_DESAT_COLORS = {};
+const REGION_ACTIVE_EMISSIVE = {};
+const REGION_DESAT_EMISSIVE = new THREE.Color(0x000000);
+BRAIN_REGIONS.forEach((r) => {
+  const c = new THREE.Color(r.color);
+  REGION_RESTING_COLORS[r.id] = c.clone().multiplyScalar(0.45);
+  REGION_ACTIVE_COLORS[r.id] = c.clone().multiplyScalar(0.85);
+  REGION_ACTIVE_EMISSIVE[r.id] = c.clone();
+  // Fully desaturated AND darkened — strip all chroma, then drop
+  // lightness so the inactive dots recede into a dim gray. Each region
+  // is darkened relative to its own base lightness so brighter colors
+  // step down proportionally with darker ones.
+  const hsl = { h: 0, s: 0, l: 0 };
+  c.getHSL(hsl);
+  REGION_DESAT_COLORS[r.id] = new THREE.Color().setHSL(
+    0,
+    0,
+    hsl.l * 0.18
+  );
+});
 
 // Produce the visual activations for a given modifier in the resting state
 // (no scenario running). Negative offsets clamp to 0 — we can't dim below
@@ -334,17 +465,22 @@ function generateClusterNodes(region) {
   const nodes = [];
   // Regions that sit on the midline (x≈0) were piling up in a thin vertical
   // stripe. Give them an extra lateral stretch so they breathe out toward
-  // the ears instead of stacking on top of each other.
+  // the ears instead of stacking on top of each other. The defaults
+  // also stretch — bigger envelopes mean adjacent clusters overlap and
+  // fill the negative space between regions.
   const isCenterline = Math.abs(region.basePos.x) < 0.2;
-  const xStretch = isCenterline ? 1.9 : 1.25;
-  const yStretch = 1.15;
-  const zStretch = 1.2;
-  for (let i = 0; i < region.nodeCount; i++) {
+  const xStretch = isCenterline ? 1.95 : 1.32;
+  const yStretch = 1.22;
+  const zStretch = 1.25;
+  // ~3.2× the configured node count per region — denser clusters carry
+  // the shape of each region without needing inter-region threads.
+  const targetCount = Math.floor(region.nodeCount * 3.2);
+  for (let i = 0; i < targetCount; i++) {
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-    // Bias radius outward (was 0.3 + 0.7*r) so clusters fill their volume
-    // instead of clumping near the center point.
-    const r = region.clusterRadius * (0.55 + Math.random() * 0.55);
+    // Bias radius outward AND extend the upper bound, so each cluster
+    // pushes into its neighbors instead of holding a tight ball.
+    const r = region.clusterRadius * (0.55 + Math.random() * 0.6);
     nodes.push({
       x: region.basePos.x + r * Math.sin(phi) * Math.cos(theta) * xStretch,
       y: region.basePos.y + r * Math.sin(phi) * Math.sin(theta) * yStretch,
@@ -724,6 +860,17 @@ export default function BrainViz() {
   const resizeBrainRef = useRef(null);
   const headObjRef = useRef(null);
   const envGroupRef = useRef(null);
+  // Region currently highlighted by the per-step card cycle. Animation
+  // loop reads this every frame to give the highlighted region's nodes
+  // an extra pulse on top of their normal activation level.
+  const highlightedRegionIdRef = useRef(null);
+  // Per-region "highlight weight" 0..1 — lerps toward 1 when a region
+  // is the current highlight, toward 0 when it's not. The animation
+  // loop multiplies the highlight pulse amplitude by this weight, so
+  // an outgoing region's fast pulse fades naturally while an incoming
+  // region's pulse fades in — creating an overlap rather than a hard
+  // hand-off between cards.
+  const regionWeightsRef = useRef({});
   const landmarkLinesRef = useRef(null);
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
@@ -747,15 +894,18 @@ export default function BrainViz() {
   const [activationSteps, setActivationSteps] = useState([]);
   const [currentStep, setCurrentStep] = useState(-1);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  // Time the active card highlight lingers on each card before advancing
+  // to the next within a step. Independent of step duration. Stored in ms.
+  const [playbackSpeed, setPlaybackSpeed] = useState(3000);
   const [scenarioText, setScenarioText] = useState("");
   const [callouts, setCallouts] = useState([]);
   const LEGEND_BREAKPOINT = 880;
   const [windowWide, setWindowWide] = useState(true);
-  const [manualOverride, setManualOverride] = useState(null);
+  // Brain Region Guide is now hidden by default — the walkthrough is the
+  // primary surface. Users open the guide explicitly via the header
+  // toggle. At narrow widths it force-closes regardless.
+  const [legendOpenRequested, setLegendOpenRequested] = useState(false);
 
-  // Track the viewport width. When the window is too narrow for both the
-  // brain scene and the 340px panel to coexist, the guide force-closes.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const check = () => setWindowWide(window.innerWidth >= LEGEND_BREAKPOINT);
@@ -764,21 +914,10 @@ export default function BrainViz() {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // If the user toggles manually, remember it, but clear the override when
-  // they cross the breakpoint in either direction so resize keeps winning.
-  const prevWideRef = useRef(true);
-  useEffect(() => {
-    if (prevWideRef.current !== windowWide) {
-      setManualOverride(null);
-    }
-    prevWideRef.current = windowWide;
-  }, [windowWide]);
-
-  // Effective state: manual override if set, otherwise auto from width.
-  const showLegend = manualOverride !== null ? manualOverride : windowWide;
+  const showLegend = windowWide && legendOpenRequested;
 
   const toggleLegend = useCallback((next) => {
-    setManualOverride(next);
+    setLegendOpenRequested(next);
   }, []);
 
   // When the guide opens or closes, the brain viewport's width changes. Ask
@@ -791,7 +930,8 @@ export default function BrainViz() {
     });
     return () => window.cancelAnimationFrame(id);
   }, [showLegend]);
-  const [stepDuration, setStepDuration] = useState(3000);
+  // Time each step holds before auto-advancing to the next. Stored in ms.
+  const [stepDuration, setStepDuration] = useState(10000);
   const [errorMsg, setErrorMsg] = useState("");
   const [groupOverride, setGroupOverride] = useState({});
   const [processingDots, setProcessingDots] = useState(0);
@@ -803,6 +943,45 @@ export default function BrainViz() {
   const activeModifier =
     MODIFIERS.find((m) => m.id === activeModifierId) || null;
   const [presetSheetOpen, setPresetSheetOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsAnchorRef = useRef(null);
+  const presetAnchorRef = useRef(null);
+
+  // Multi-select Altered States picker. The selection is held in state but
+  // not yet wired into the LLM prompt — UI shell first, behavior later.
+  const [selectedStateIds, setSelectedStateIds] = useState([]);
+  const [statesPickerOpen, setStatesPickerOpen] = useState(false);
+  const statesAnchorRef = useRef(null);
+
+  // Close popovers when clicking outside them.
+  useEffect(() => {
+    if (!settingsOpen && !statesPickerOpen && !presetSheetOpen) return;
+    const onDocClick = (e) => {
+      if (
+        settingsOpen &&
+        settingsAnchorRef.current &&
+        !settingsAnchorRef.current.contains(e.target)
+      ) {
+        setSettingsOpen(false);
+      }
+      if (
+        statesPickerOpen &&
+        statesAnchorRef.current &&
+        !statesAnchorRef.current.contains(e.target)
+      ) {
+        setStatesPickerOpen(false);
+      }
+      if (
+        presetSheetOpen &&
+        presetAnchorRef.current &&
+        !presetAnchorRef.current.contains(e.target)
+      ) {
+        setPresetSheetOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [settingsOpen, statesPickerOpen, presetSheetOpen]);
 
   // When the active modifier changes, update the visible activations.
   // If a scenario step is currently showing, re-apply the modifier math to
@@ -842,7 +1021,7 @@ export default function BrainViz() {
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100);
-    camera.position.set(0, 0.3, 3.0);
+    camera.position.set(0, 0.3, 2.4);
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
@@ -870,20 +1049,20 @@ export default function BrainViz() {
     brainContentGroup.scale.setScalar(0.9);
     brainGroup.add(brainContentGroup);
 
-    // Low ambient so the shadowed side of each sphere sits deep — contrast
-    // over blend. User wants the highlight crisp and the shadow harsh.
-    const ambient = new THREE.AmbientLight(0x223044, 0.35);
+    // Balanced lighting so every sphere shows a clear lit side, mid
+    // tone, and shadow side at all times — even active/highlighted dots
+    // don't blow out into a flat blob.
+    const ambient = new THREE.AmbientLight(0x2a3a55, 0.4);
     scene.add(ambient);
 
-    // Hard key light from upper-front-left: high intensity, warm, creates
-    // a bright lit hemisphere on every sphere.
-    const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
+    // Key light from upper-front-left.
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
     keyLight.position.set(-3, 4, 5);
     scene.add(keyLight);
 
-    // Very subtle cool fill — just enough so the dark side isn't pure
-    // black, but the chiaroscuro stays obvious.
-    const fillLight = new THREE.DirectionalLight(0x4a6a9a, 0.15);
+    // Cool fill from the opposite side keeps the shadow side from
+    // collapsing into pure black so the mid-tones survive.
+    const fillLight = new THREE.DirectionalLight(0x6a88c4, 0.5);
     fillLight.position.set(4, -1, -2);
     scene.add(fillLight);
 
@@ -900,21 +1079,24 @@ export default function BrainViz() {
     const nodeMeshes = [];
     allNodes.forEach((node) => {
       const region = BRAIN_REGIONS.find((r) => r.id === node.regionId);
-      // High segment count so highlights land smoothly and the silhouette
-      // reads as a true sphere, not a faceted ball.
-      const geo = new THREE.SphereGeometry(node.baseSize, 32, 32);
+      // 4× more dots → bring segment count down to keep total triangle
+      // count manageable. Spheres are small enough that 16 still reads
+      // round and shaded.
+      const geo = new THREE.SphereGeometry(node.baseSize, 16, 16);
       // Standard material reacts to the scene lights and also supports an
       // emissive channel we can drive for the activation "glow." Base
       // color is darkened so inactive nodes sit back; emissive does the
       // heavy lifting when a region lights up.
       const baseColor = new THREE.Color(region.color);
-      const darkBase = baseColor.clone().multiplyScalar(0.35);
+      const litBase = baseColor.clone().multiplyScalar(0.45);
       const mat = new THREE.MeshStandardMaterial({
-        color: darkBase,
+        color: litBase.clone(),
         emissive: baseColor,
-        emissiveIntensity: 0.25,
-        roughness: 0.18,
-        metalness: 0.25,
+        emissiveIntensity: 0.08,
+        roughness: 0.5,
+        metalness: 0.05,
+        transparent: true,
+        opacity: 1,
       });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(node.x, node.y, node.z);
@@ -929,12 +1111,20 @@ export default function BrainViz() {
         new THREE.Vector3(allNodes[a].x, allNodes[a].y, allNodes[a].z),
         new THREE.Vector3(allNodes[b].x, allNodes[b].y, allNodes[b].z),
       ]);
+      // Intra-region lines use the region's own color so each cluster's
+      // internal mesh reads as a tinted web. Inter-region lines stay
+      // grey but get hidden — they tangle the picture across regions.
+      const isIntra = type === "intra";
+      const intraRegion = isIntra
+        ? BRAIN_REGIONS.find((r) => r.id === allNodes[a].regionId)
+        : null;
       const mat = new THREE.LineBasicMaterial({
-        color: 0x334455,
+        color: intraRegion ? new THREE.Color(intraRegion.color) : 0x334455,
         transparent: true,
-        opacity: type === "intra" ? 0.04 : 0.02,
+        opacity: isIntra ? 0.09 : 0.01,
       });
       const line = new THREE.Line(geo, mat);
+      line.visible = isIntra;
       brainContentGroup.add(line);
       connectionLines.push({ line, a, b, type });
     });
@@ -1196,8 +1386,12 @@ export default function BrainViz() {
       // Gentle elliptical drift of the whole assembly. Non-repeating because
       // the X and Y periods are coprime, so the motion never settles into a
       // visible loop. Subtle amplitude on purpose.
-      brainGroupRef.current.position.x = Math.sin(t * 0.13) * 0.18;
-      brainGroupRef.current.position.y = Math.cos(t * 0.1) * 0.09;
+      // Constant rightward offset on top of the lazy ellipse drift, so
+      // the head sits a touch right-of-center.
+      brainGroupRef.current.position.x = 0.45 + Math.sin(t * 0.13) * 0.18;
+      // Constant downward offset so the head/brain sit lower in the canvas
+      // and don't crowd the top header bar.
+      brainGroupRef.current.position.y = -0.38 + Math.cos(t * 0.1) * 0.09;
       // Constant z offset pushing the whole assembly (and its drift
       // ellipse) away from the camera, so even at the closest point of
       // the ebb the brain still clears the foreground UI.
@@ -1206,46 +1400,104 @@ export default function BrainViz() {
       const nodes = nodesRef.current;
       const meshes = nodeMeshesRef.current;
 
+      // Lerp every known region's highlight weight toward its target
+      // (1 if it's the current highlight, 0 otherwise). The lerp factor
+      // controls the overlap window — small enough that an outgoing
+      // region's fast pulse continues for a beat after the next region
+      // takes over, fading as the incoming one ramps up.
+      const highlightedRegionId = highlightedRegionIdRef.current;
+      const weights = regionWeightsRef.current;
+      const lerpRate = 0.045;
+      BRAIN_REGIONS.forEach((r) => {
+        const target = highlightedRegionId === r.id ? 1 : 0;
+        const current = weights[r.id] || 0;
+        weights[r.id] = current + (target - current) * lerpRate;
+      });
+
+      // Pick the per-region target color, target emissive, and target
+      // emissive intensity for THIS frame. The emissive channel is what
+      // was leaking chroma onto the inactive spheres — zeroing it for
+      // inactive regions lets the dark gray diffuse + lighting do the
+      // work, so they read as dark gray with visible highlights.
+      const stepLoaded = Object.values(activations).some((v) => v > 0);
+      const colorTargets = {};
+      const emissiveTargets = {};
+      const emissiveIntensityTargets = {};
+      BRAIN_REGIONS.forEach((r) => {
+        const a = activations[r.id] || 0;
+        if (!stepLoaded) {
+          colorTargets[r.id] = REGION_RESTING_COLORS[r.id];
+          emissiveTargets[r.id] = REGION_ACTIVE_EMISSIVE[r.id];
+          emissiveIntensityTargets[r.id] = 0.08;
+        } else if (a > 0) {
+          colorTargets[r.id] = REGION_ACTIVE_COLORS[r.id];
+          emissiveTargets[r.id] = REGION_ACTIVE_EMISSIVE[r.id];
+          emissiveIntensityTargets[r.id] = 0.1;
+        } else {
+          colorTargets[r.id] = REGION_DESAT_COLORS[r.id];
+          emissiveTargets[r.id] = REGION_DESAT_EMISSIVE;
+          emissiveIntensityTargets[r.id] = 0;
+        }
+      });
+
       meshes.forEach((mesh, i) => {
         const node = nodes[i];
         const activation = activations[node.regionId] || 0;
+        const w = weights[node.regionId] || 0;
 
-        // Drive the emissive "glow" instead of opacity so the lit/shadowed
-        // sides from the key light still read. Inactive = gentle idle pulse,
-        // active = bright bloom with stronger pulse.
-        const pulse = Math.sin(t * 3 + node.pulseOffset) * 0.5 + 0.5;
-        const baseIntensity = 0.18 + pulse * 0.08;
-        const activeIntensity =
-          0.9 + activation * 0.6 + pulse * activation * 0.5;
+        const slowPulse01 =
+          Math.sin(t * 3 + node.pulseOffset) * 0.5 + 0.5;
+        // Symmetric fast oscillation (-1..1) so the highlighted region
+        // shrinks below baseline AND blooms above it on each beat.
+        const fastOsc = Math.sin(t * 7.5 + node.pulseOffset);
+
+        // Smoothly lerp the diffuse color toward its target for this
+        // frame — active regions ramp toward bright, inactive regions
+        // ramp toward fully-desaturated dark gray, both over ~0.5s.
+        mesh.material.color.lerp(colorTargets[node.regionId], 0.05);
+        // Lerp the emissive color too — the constant 8% colored glow
+        // is what was leaking chroma onto inactive spheres. Inactive
+        // regions ramp emissive toward black so the chroma fades.
+        mesh.material.emissive.lerp(emissiveTargets[node.regionId], 0.05);
+        // Lerp emissive intensity toward the per-state target (0 for
+        // inactive regions, low resting baseline otherwise).
+        const targetIntensity = emissiveIntensityTargets[node.regionId];
+        const intensityWithPulse =
+          targetIntensity > 0 ? targetIntensity + slowPulse01 * 0.03 : 0;
         mesh.material.emissiveIntensity =
-          activation > 0 ? activeIntensity : baseIntensity;
+          mesh.material.emissiveIntensity +
+          (intensityWithPulse - mesh.material.emissiveIntensity) * 0.05;
 
-        const baseScale = 1;
-        const activeScale = 1 + activation * 0.8 + pulse * activation * 0.4;
-        const scale = activation > 0 ? activeScale : baseScale;
-        mesh.scale.setScalar(scale);
+        // Scale = baseline + slow normal pulse (always present when
+        // active) + fast highlight pulse (amplitude weighted by w, so
+        // it eases in for the incoming region and eases out for the
+        // outgoing one — creating the overlap the user asked for).
+        const baseSize = 1;
+        const activeOffset = activation * 0.5;
+        const normalPulse =
+          (slowPulse01 - 0.5) * 2 * activation * 0.3;
+        const highlightPulse = fastOsc * 0.7 * w;
+        mesh.scale.setScalar(
+          baseSize + activeOffset + normalPulse + highlightPulse
+        );
       });
 
-      connectionLinesRef.current.forEach(({ line, a, b, type }) => {
-        const regionA = nodes[a].regionId;
-        const regionB = nodes[b].regionId;
-        const actA = activations[regionA] || 0;
-        const actB = activations[regionB] || 0;
-        const avgAct = (actA + actB) / 2;
-
-        if (avgAct > 0) {
-          const regionObjA = BRAIN_REGIONS.find((r) => r.id === regionA);
-          const regionObjB = BRAIN_REGIONS.find((r) => r.id === regionB);
-          const color = new THREE.Color(regionObjA.color).lerp(
-            new THREE.Color(regionObjB.color),
-            0.5
-          );
-          line.material.color = color;
-          line.material.opacity = 0.25 + avgAct * 0.6;
-        } else {
-          line.material.color = new THREE.Color(0x6a7a90);
-          line.material.opacity = type === "intra" ? 0.2 : 0.12;
-        }
+      connectionLinesRef.current.forEach(({ line, a, type }) => {
+        // Inter-region lines stay hidden + we don't bother updating them.
+        if (type !== "intra") return;
+        const regionId = nodes[a].regionId;
+        // Match the dot color/opacity logic so the intra-region web
+        // tracks each region's resting / active / desaturated state.
+        const targetColor = colorTargets[regionId];
+        line.material.color.lerp(targetColor, 0.06);
+        const stateOpacity = !stepLoaded
+          ? 0.09
+          : (activations[regionId] || 0) > 0
+          ? 0.15
+          : 0.02;
+        line.material.opacity =
+          line.material.opacity +
+          (stateOpacity - line.material.opacity) * 0.06;
       });
 
       rendererRef.current.render(sceneRef.current, cameraRef.current);
@@ -1350,7 +1602,6 @@ export default function BrainViz() {
   useEffect(() => {
     if (!isPlaying || activationSteps.length === 0) return;
 
-    const duration = stepDuration / playbackSpeed;
     playTimerRef.current = setTimeout(() => {
       const nextStep = currentStep + 1;
       if (nextStep < activationSteps.length) {
@@ -1358,10 +1609,10 @@ export default function BrainViz() {
       } else {
         setIsPlaying(false);
       }
-    }, duration);
+    }, stepDuration);
 
     return () => clearTimeout(playTimerRef.current);
-  }, [isPlaying, currentStep, activationSteps, playbackSpeed, stepDuration, goToStep]);
+  }, [isPlaying, currentStep, activationSteps, stepDuration, goToStep]);
 
   const togglePlay = () => {
     if (currentStep >= activationSteps.length - 1) {
@@ -1370,7 +1621,68 @@ export default function BrainViz() {
     } else {
       setIsPlaying(!isPlaying);
     }
+    // Resume region cycling if it was paused.
+    setRegionCyclePaused(false);
   };
+
+  // === Region cycling within a step ===
+  // Filtered + sorted list of cards visible at the current step. Highest
+  // intensity first. Both the rendered cards and the cycle index map onto
+  // this same array.
+  const activeCallouts = callouts
+    .filter((c) => c.intensity > 0.3)
+    .slice()
+    .sort((a, b) => b.intensity - a.intensity);
+
+  const [highlightedRegionIdx, setHighlightedRegionIdx] = useState(0);
+  const [regionCyclePaused, setRegionCyclePaused] = useState(false);
+  // Cards stagger in on every step transition. The highlight cycle
+  // doesn't start until they've finished entering, so the user sees the
+  // construction first, then the highlight begins.
+  const [cardsEntered, setCardsEntered] = useState(false);
+
+  // Reset cycle whenever the step changes — start from the dominant card,
+  // hold cards-entered false, and flip it true after the stagger completes.
+  useEffect(() => {
+    setHighlightedRegionIdx(0);
+    setRegionCyclePaused(false);
+    setCardsEntered(false);
+    if (currentStep < 0 || activationSteps.length === 0) return;
+    const cardCount = activeCallouts.length || 1;
+    const totalStagger = 570 + (cardCount - 1) * 165;
+    const t = setTimeout(() => setCardsEntered(true), totalStagger + 60);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
+
+  // Mirror the highlighted region ID into a ref so the animation loop
+  // (which captures by closure) can read it without re-subscribing.
+  useEffect(() => {
+    const c = activeCallouts[highlightedRegionIdx];
+    highlightedRegionIdRef.current = c ? c.regionId : null;
+  }, [highlightedRegionIdx, activeCallouts]);
+
+  // Auto-cycle the highlighted card. Cadence is the user-set Region
+  // Highlight duration (independent of step length). Pauses when the
+  // user clicks any card. Waits until cards have finished their
+  // entrance stagger so the construction reads first.
+  useEffect(() => {
+    if (!cardsEntered) return;
+    if (regionCyclePaused) return;
+    if (activeCallouts.length <= 1) return;
+    const t = setTimeout(() => {
+      setHighlightedRegionIdx(
+        (prev) => (prev + 1) % activeCallouts.length
+      );
+    }, playbackSpeed);
+    return () => clearTimeout(t);
+  }, [
+    highlightedRegionIdx,
+    regionCyclePaused,
+    activeCallouts.length,
+    playbackSpeed,
+    cardsEntered,
+  ]);
 
   const fontStack = "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   const displayFont = "var(--font-instrument-serif), Georgia, serif";
@@ -1409,26 +1721,37 @@ export default function BrainViz() {
           maskImage: "linear-gradient(to top, #000 0%, transparent 100%)",
           WebkitMaskImage: "linear-gradient(to top, #000 0%, transparent 100%)",
           pointerEvents: "none",
-          zIndex: 0,
+          zIndex: 5,
         }}
       />
       <div
         style={{
-          padding: "16px 24px",
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          padding: "12px 24px",
           borderBottom: "1px solid rgba(255,255,255,0.06)",
+          background: "rgba(0,0,0,0.12)",
+          backdropFilter: "blur(4px)",
+          WebkitBackdropFilter: "blur(4px)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          flexShrink: 0,
+          gap: "24px",
+          zIndex: 6,
         }}
       >
-        <div style={{ display: "flex", alignItems: "baseline", gap: "20px" }}>
+        {/* Left: stacked wordmark — title sits on top, "Brain Activity
+            Visualizer" subtitle slots underneath. Title size tuned so the
+            two lines form a tidy block of roughly equal width. */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px", flexShrink: 0, userSelect: "none", WebkitUserSelect: "none" }}>
           <span
             style={{
               position: "relative",
               display: "inline-block",
               fontFamily: displayFont,
-              fontSize: "68px",
+              fontSize: "44px",
               letterSpacing: "-0.02em",
               lineHeight: 1,
             }}
@@ -1441,18 +1764,18 @@ export default function BrainViz() {
                 // Oranges, yellows, and purples bumped to full alpha so they
                 // pull their weight against the reds/greens/blues.
                 backgroundImage: `
-                  radial-gradient(ellipse 25% 80% at 4% 108%, rgba(255,106,61,0.7) 0%, transparent 55%),
-                  radial-gradient(ellipse 20% 95% at 11% 92%, rgba(255,159,67,0.8) 0%, transparent 55%),
-                  radial-gradient(ellipse 28% 75% at 19% 105%, rgba(255,184,77,0.8) 0%, transparent 55%),
-                  radial-gradient(ellipse 22% 90% at 27% 88%, rgba(0,216,138,0.45) 0%, transparent 55%),
-                  radial-gradient(ellipse 25% 80% at 36% 102%, rgba(46,156,255,0.425) 0%, transparent 55%),
-                  radial-gradient(ellipse 22% 95% at 44% 90%, rgba(15,95,214,0.4) 0%, transparent 55%),
-                  radial-gradient(ellipse 25% 80% at 53% 105%, rgba(216,100,255,0.5) 0%, transparent 55%),
-                  radial-gradient(ellipse 22% 85% at 62% 90%, rgba(255,159,67,0.8) 0%, transparent 55%),
-                  radial-gradient(ellipse 25% 80% at 71% 105%, rgba(0,216,138,0.425) 0%, transparent 55%),
-                  radial-gradient(ellipse 22% 95% at 80% 88%, rgba(46,156,255,0.425) 0%, transparent 55%),
-                  radial-gradient(ellipse 25% 80% at 89% 102%, rgba(155,43,255,0.5) 0%, transparent 55%),
-                  radial-gradient(ellipse 25% 80% at 97% 90%, rgba(255,184,77,0.8) 0%, transparent 55%),
+                  radial-gradient(ellipse 25% 80% at 4% 108%, rgba(255,106,61,0.84) 0%, transparent 55%),
+                  radial-gradient(ellipse 20% 95% at 11% 92%, rgba(255,159,67,0.96) 0%, transparent 55%),
+                  radial-gradient(ellipse 28% 75% at 19% 105%, rgba(255,184,77,0.96) 0%, transparent 55%),
+                  radial-gradient(ellipse 22% 90% at 27% 88%, rgba(0,216,138,0.54) 0%, transparent 55%),
+                  radial-gradient(ellipse 25% 80% at 36% 102%, rgba(46,156,255,0.51) 0%, transparent 55%),
+                  radial-gradient(ellipse 22% 95% at 44% 90%, rgba(15,95,214,0.48) 0%, transparent 55%),
+                  radial-gradient(ellipse 25% 80% at 53% 105%, rgba(216,100,255,0.6) 0%, transparent 55%),
+                  radial-gradient(ellipse 22% 85% at 62% 90%, rgba(255,159,67,0.96) 0%, transparent 55%),
+                  radial-gradient(ellipse 25% 80% at 71% 105%, rgba(0,216,138,0.51) 0%, transparent 55%),
+                  radial-gradient(ellipse 22% 95% at 80% 88%, rgba(46,156,255,0.51) 0%, transparent 55%),
+                  radial-gradient(ellipse 25% 80% at 89% 102%, rgba(155,43,255,0.6) 0%, transparent 55%),
+                  radial-gradient(ellipse 25% 80% at 97% 90%, rgba(255,184,77,0.96) 0%, transparent 55%),
                   linear-gradient(#ffffff, #ffffff)
                 `,
                 WebkitBackgroundClip: "text",
@@ -1471,18 +1794,18 @@ export default function BrainViz() {
               className="nc-wordmark-bloom"
               style={{
                 backgroundImage: `
-                  radial-gradient(ellipse 25% 110% at 4% 135%, rgba(255,59,48,0.475) 0%, transparent 60%),
-                  radial-gradient(ellipse 20% 130% at 11% 120%, rgba(255,159,67,0.5) 0%, transparent 60%),
-                  radial-gradient(ellipse 28% 110% at 19% 135%, rgba(255,184,77,0.5) 0%, transparent 60%),
-                  radial-gradient(ellipse 22% 125% at 27% 115%, rgba(0,216,138,0.475) 0%, transparent 60%),
-                  radial-gradient(ellipse 25% 115% at 36% 130%, rgba(46,156,255,0.45) 0%, transparent 60%),
-                  radial-gradient(ellipse 22% 130% at 44% 118%, rgba(15,95,214,0.425) 0%, transparent 60%),
-                  radial-gradient(ellipse 25% 115% at 53% 132%, rgba(216,100,255,0.5) 0%, transparent 60%),
-                  radial-gradient(ellipse 22% 120% at 62% 118%, rgba(255,159,67,0.5) 0%, transparent 60%),
-                  radial-gradient(ellipse 25% 115% at 71% 132%, rgba(0,216,138,0.45) 0%, transparent 60%),
-                  radial-gradient(ellipse 22% 130% at 80% 115%, rgba(46,156,255,0.45) 0%, transparent 60%),
-                  radial-gradient(ellipse 25% 115% at 89% 130%, rgba(155,43,255,0.5) 0%, transparent 60%),
-                  radial-gradient(ellipse 25% 115% at 97% 118%, rgba(255,184,77,0.5) 0%, transparent 60%),
+                  radial-gradient(ellipse 25% 110% at 4% 135%, rgba(255,59,48,0.57) 0%, transparent 60%),
+                  radial-gradient(ellipse 20% 130% at 11% 120%, rgba(255,159,67,0.6) 0%, transparent 60%),
+                  radial-gradient(ellipse 28% 110% at 19% 135%, rgba(255,184,77,0.6) 0%, transparent 60%),
+                  radial-gradient(ellipse 22% 125% at 27% 115%, rgba(0,216,138,0.57) 0%, transparent 60%),
+                  radial-gradient(ellipse 25% 115% at 36% 130%, rgba(46,156,255,0.54) 0%, transparent 60%),
+                  radial-gradient(ellipse 22% 130% at 44% 118%, rgba(15,95,214,0.51) 0%, transparent 60%),
+                  radial-gradient(ellipse 25% 115% at 53% 132%, rgba(216,100,255,0.6) 0%, transparent 60%),
+                  radial-gradient(ellipse 22% 120% at 62% 118%, rgba(255,159,67,0.6) 0%, transparent 60%),
+                  radial-gradient(ellipse 25% 115% at 71% 132%, rgba(0,216,138,0.54) 0%, transparent 60%),
+                  radial-gradient(ellipse 22% 130% at 80% 115%, rgba(46,156,255,0.54) 0%, transparent 60%),
+                  radial-gradient(ellipse 25% 115% at 89% 130%, rgba(155,43,255,0.6) 0%, transparent 60%),
+                  radial-gradient(ellipse 25% 115% at 97% 118%, rgba(255,184,77,0.6) 0%, transparent 60%),
                   linear-gradient(transparent, transparent)
                 `,
                 WebkitBackgroundClip: "text",
@@ -1494,34 +1817,369 @@ export default function BrainViz() {
               Neural Cascade
             </span>
           </span>
-          <span style={{ color: "#e8ecf2", fontSize: "15px", letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 500 }}>
+          <span style={{ color: "#e8ecf2", fontSize: "9.5px", letterSpacing: "0.36em", textTransform: "uppercase", fontWeight: 500, lineHeight: 1, marginTop: "-5px" }}>
             Brain Activity Visualizer
           </span>
         </div>
-        {!showLegend && (
-          <button
-            onClick={() => toggleLegend(true)}
+
+        {/* Center: step navigation. Only renders once a scenario is loaded.
+            Two stacked rows — prev/counter/next on top, description (with
+            italic time label) underneath. */}
+        {activationSteps.length > 0 && currentStep >= 0 ? (
+          <div
             style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              color: "#c0c8d8",
-              padding: "6px 14px",
-              borderRadius: "14px",
-              cursor: "pointer",
-              fontFamily: fontStack,
-              fontSize: "12px",
-              fontWeight: 500,
-              letterSpacing: "0.04em",
+              flex: 1,
+              minWidth: 0,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "4px",
+              maxWidth: "640px",
             }}
           >
-            Open Brain Region Guide
-          </button>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "16px",
+              }}
+            >
+              <button
+                onClick={() => {
+                  if (currentStep > 0) {
+                    if (isPlaying) setIsPlaying(false);
+                    goToStep(currentStep - 1);
+                  }
+                }}
+                disabled={currentStep <= 0}
+                aria-label="Previous step"
+                style={{
+                  background: "transparent",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  color:
+                    currentStep <= 0 ? "rgba(255,255,255,0.2)" : "#e8ecf2",
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "50%",
+                  cursor: currentStep <= 0 ? "default" : "pointer",
+                  fontFamily: fontStack,
+                  fontSize: "19px",
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s ease",
+                  padding: 0,
+                }}
+              >
+                ❮
+              </button>
+              <div
+                style={{
+                  fontFamily: displayFont,
+                  fontSize: "31px",
+                  color: "#ffffff",
+                  lineHeight: 1,
+                  letterSpacing: "-0.01em",
+                  whiteSpace: "nowrap",
+                  userSelect: "none",
+                  WebkitUserSelect: "none",
+                }}
+              >
+                Step {currentStep + 1} of {activationSteps.length}
+              </div>
+              <button
+                onClick={() => {
+                  if (currentStep < activationSteps.length - 1) {
+                    if (isPlaying) setIsPlaying(false);
+                    goToStep(currentStep + 1);
+                  }
+                }}
+                disabled={currentStep >= activationSteps.length - 1}
+                aria-label="Next step"
+                style={{
+                  background: "transparent",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  color:
+                    currentStep >= activationSteps.length - 1
+                      ? "rgba(255,255,255,0.2)"
+                      : "#e8ecf2",
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "50%",
+                  cursor:
+                    currentStep >= activationSteps.length - 1
+                      ? "default"
+                      : "pointer",
+                  fontFamily: fontStack,
+                  fontSize: "19px",
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s ease",
+                  padding: 0,
+                }}
+              >
+                ❯
+              </button>
+            </div>
+            <div
+              style={{
+                color: "#e8ecf2",
+                fontSize: "13px",
+                lineHeight: 1.35,
+                textAlign: "center",
+                fontFamily: fontStack,
+                width: "100%",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {activationSteps[currentStep]?.description}{" "}
+              <span
+                style={{
+                  color: "#8892a4",
+                  fontStyle: "italic",
+                  fontWeight: 400,
+                  marginLeft: "4px",
+                }}
+              >
+                {activationSteps[currentStep]?.time_label}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div style={{ flex: 1, minWidth: 0 }} />
         )}
+
+        {/* Right: Brain Region Guide button (always pinned to top-right
+            with empty placeholder space below). Play/gear sit in the
+            reserved row when a scenario is loaded; otherwise the row
+            stays empty so the guide button doesn't reflow. */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: "6px",
+            flexShrink: 0,
+            minWidth: "230px",
+          }}
+        >
+          <div style={{ minHeight: "30px", display: "flex", alignItems: "center" }}>
+            {!showLegend && (
+              <button
+                onClick={() => toggleLegend(true)}
+                style={{
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  color: "#c0c8d8",
+                  padding: "6px 14px",
+                  borderRadius: "14px",
+                  cursor: "pointer",
+                  fontFamily: fontStack,
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  letterSpacing: "0.04em",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  userSelect: "none",
+                  WebkitUserSelect: "none",
+                }}
+              >
+                {activationSteps.length > 0 && (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: "16px",
+                      height: "16px",
+                      borderRadius: "50%",
+                      background: "#ffffff",
+                      color: "#0a0a12",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "10px",
+                      fontWeight: 800,
+                      lineHeight: 1,
+                      flexShrink: 0,
+                    }}
+                  >
+                    ✓
+                  </span>
+                )}
+                Open Brain Region Guide
+              </button>
+            )}
+          </div>
+          <div
+            style={{
+              minHeight: "32px",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+            }}
+          >
+            {activationSteps.length > 0 && currentStep >= 0 && (
+              <>
+                <button
+                  onClick={togglePlay}
+                  style={{
+                    background: "#ffffff",
+                    border: "none",
+                    color: "#0a0a12",
+                    padding: "8px 16px 8px 12px",
+                    borderRadius: "20px",
+                    cursor: "pointer",
+                    fontFamily: fontStack,
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    letterSpacing: "0.04em",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    lineHeight: 1,
+                    flexShrink: 0,
+                    userSelect: "none",
+                    WebkitUserSelect: "none",
+                  }}
+                >
+                  {isPlaying ? (
+                    <span style={{ display: "flex", gap: "3px" }}>
+                      <span style={{ width: "3px", height: "10px", background: "#0a0a12", display: "inline-block" }} />
+                      <span style={{ width: "3px", height: "10px", background: "#0a0a12", display: "inline-block" }} />
+                    </span>
+                  ) : (
+                    <span
+                      style={{
+                        width: 0,
+                        height: 0,
+                        borderTop: "6px solid transparent",
+                        borderBottom: "6px solid transparent",
+                        borderLeft: "9px solid #0a0a12",
+                      }}
+                    />
+                  )}
+                  {isPlaying ? "Pause Walkthrough" : "Play Walkthrough"}
+                </button>
+                <div
+                  ref={settingsAnchorRef}
+                  style={{ position: "relative", flexShrink: 0 }}
+                >
+                  <button
+                    onClick={() => setSettingsOpen((v) => !v)}
+                    aria-label="Playback settings"
+                    style={{
+                      background: settingsOpen
+                        ? "rgba(255,255,255,0.08)"
+                        : "transparent",
+                      border: "1px solid rgba(255,255,255,0.18)",
+                      color: "#e8ecf2",
+                      width: "32px",
+                      height: "32px",
+                      borderRadius: "50%",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 0,
+                      fontSize: "22px",
+                      lineHeight: 1,
+                      transition: "background 0.15s ease",
+                    }}
+                  >
+                    <span style={{ display: "block", transform: "translateY(-2px)" }}>⚙</span>
+                  </button>
+                  {settingsOpen && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "calc(100% + 8px)",
+                        right: 0,
+                        background: "#ffffff",
+                        border: "1px solid rgba(10,10,18,0.15)",
+                        borderRadius: "10px",
+                        boxShadow: "0 8px 28px rgba(0,0,0,0.18)",
+                        padding: "14px 16px",
+                        minWidth: "240px",
+                        zIndex: 30,
+                      }}
+                    >
+                      <div style={{ color: "#0a0a12", fontSize: "10px", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 700, opacity: 0.55, marginBottom: "8px" }}>
+                        REGION HIGHLIGHT
+                      </div>
+                      <div style={{ display: "flex", gap: "6px", marginBottom: "14px" }}>
+                        {[3000, 5000, 8000, 12000].map((dur) => {
+                          const isActive = playbackSpeed === dur;
+                          return (
+                            <button
+                              key={dur}
+                              onClick={() => setPlaybackSpeed(dur)}
+                              style={{
+                                flex: 1,
+                                background: isActive ? "#0a0a12" : "transparent",
+                                border: `1px solid ${isActive ? "#0a0a12" : "rgba(10,10,18,0.25)"}`,
+                                color: isActive ? "#ffffff" : "#0a0a12",
+                                padding: "6px 0",
+                                borderRadius: "5px",
+                                cursor: "pointer",
+                                fontFamily: fontStack,
+                                fontSize: "12px",
+                                fontWeight: 600,
+                                lineHeight: 1,
+                              }}
+                            >
+                              {dur / 1000}s
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div style={{ color: "#0a0a12", fontSize: "10px", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 700, opacity: 0.55, marginBottom: "8px" }}>
+                        TIME BETWEEN STEPS
+                      </div>
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        {[5000, 10000, 15000, 30000].map((dur) => {
+                          const isActive = stepDuration === dur;
+                          return (
+                            <button
+                              key={dur}
+                              onClick={() => setStepDuration(dur)}
+                              style={{
+                                flex: 1,
+                                background: isActive ? "#0a0a12" : "transparent",
+                                border: `1px solid ${isActive ? "#0a0a12" : "rgba(10,10,18,0.25)"}`,
+                                color: isActive ? "#ffffff" : "#0a0a12",
+                                padding: "6px 0",
+                                borderRadius: "5px",
+                                cursor: "pointer",
+                                fontFamily: fontStack,
+                                fontSize: "12px",
+                                fontWeight: 600,
+                                lineHeight: 1,
+                              }}
+                            >
+                              {dur / 1000}s
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* White header row — conditional, only appears once a scenario is
-          running or has run. Spans the viewport + legend columns. */}
-      {(scenarioText || isProcessing || activationSteps.length > 0) && (
+      {/* DELETED: white header row — replaced by the top toast (during
+          processing only) and the in-Step-Header playback controls. */}
+      {false && (
       <div
         style={{
           display: "flex",
@@ -1536,8 +2194,8 @@ export default function BrainViz() {
             display: "flex",
             alignItems: "center",
             gap: "16px",
-            padding: "10px 24px",
-            minHeight: "46px",
+            padding: "5px 24px",
+            minHeight: "36px",
           }}
         >
           <div
@@ -1597,35 +2255,34 @@ export default function BrainViz() {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "10px",
+                gap: "12px",
                 flexShrink: 0,
-                paddingLeft: "14px",
+                paddingLeft: "16px",
                 borderLeft: "1px solid rgba(10,10,18,0.15)",
+                position: "relative",
               }}
             >
               <button
                 onClick={togglePlay}
-                aria-label={isPlaying ? "Pause" : "Play"}
                 style={{
                   background: "#0a0a12",
                   border: "none",
                   color: "#ffffff",
-                  width: "26px",
-                  height: "26px",
-                  borderRadius: "50%",
+                  padding: "8px 16px 8px 12px",
+                  borderRadius: "20px",
                   cursor: "pointer",
                   fontFamily: fontStack,
-                  fontSize: "11px",
-                  fontWeight: 700,
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  letterSpacing: "0.04em",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  padding: 0,
+                  gap: "8px",
                   lineHeight: 1,
                 }}
               >
                 {isPlaying ? (
-                  <span style={{ display: "flex", gap: "2px" }}>
+                  <span style={{ display: "flex", gap: "3px" }}>
                     <span style={{ width: "3px", height: "10px", background: "#ffffff", display: "inline-block" }} />
                     <span style={{ width: "3px", height: "10px", background: "#ffffff", display: "inline-block" }} />
                   </span>
@@ -1637,128 +2294,452 @@ export default function BrainViz() {
                       borderTop: "6px solid transparent",
                       borderBottom: "6px solid transparent",
                       borderLeft: "9px solid #ffffff",
-                      marginLeft: "2px",
                     }}
                   />
                 )}
+                {isPlaying ? "Pause Walkthrough" : "Play Walkthrough"}
               </button>
 
-              <div style={{ display: "flex", gap: "3px", alignItems: "center" }}>
-                {activationSteps.map((step, i) => {
-                  const isCurrent = i === currentStep;
-                  const isPast = i < currentStep;
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => {
-                        setIsPlaying(false);
-                        goToStep(i);
-                      }}
-                      style={{
-                        width: isCurrent ? "18px" : "6px",
-                        height: "6px",
-                        borderRadius: "3px",
-                        background: isCurrent
-                          ? "#0a0a12"
-                          : isPast
-                          ? "rgba(10,10,18,0.45)"
-                          : "rgba(10,10,18,0.15)",
-                        border: "none",
-                        cursor: "pointer",
-                        transition: "all 0.3s ease",
-                        padding: 0,
-                      }}
-                      title={step.time_label}
-                      aria-label={`Step ${i + 1}`}
-                    />
-                  );
-                })}
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "4px" }}>
-                <span
+              <div ref={settingsAnchorRef} style={{ position: "relative" }}>
+                <button
+                  onClick={() => setSettingsOpen((v) => !v)}
+                  aria-label="Playback settings"
                   style={{
+                    background: settingsOpen ? "rgba(10,10,18,0.08)" : "transparent",
+                    border: "1px solid rgba(10,10,18,0.2)",
                     color: "#0a0a12",
-                    fontSize: "9px",
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    fontWeight: 700,
-                    opacity: 0.45,
-                    marginRight: "2px",
+                    width: "44px",
+                    height: "44px",
+                    borderRadius: "50%",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: 0,
+                    fontSize: "32px",
+                    lineHeight: 1,
+                    transition: "background 0.15s ease",
                   }}
                 >
-                  SPEED
-                </span>
-                {[0.5, 1, 2, 4].map((speed) => {
-                  const isActive = playbackSpeed === speed;
-                  return (
-                    <button
-                      key={speed}
-                      onClick={() => setPlaybackSpeed(speed)}
+                  <span style={{ display: "block", transform: "translateY(-3px)" }}>⚙</span>
+                </button>
+                {settingsOpen && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "calc(100% + 8px)",
+                      right: 0,
+                      background: "#ffffff",
+                      border: "1px solid rgba(10,10,18,0.15)",
+                      borderRadius: "10px",
+                      boxShadow: "0 8px 28px rgba(0,0,0,0.18)",
+                      padding: "14px 16px",
+                      minWidth: "240px",
+                      zIndex: 30,
+                    }}
+                  >
+                    <div
                       style={{
-                        background: isActive ? "#0a0a12" : "transparent",
-                        border: `1px solid ${isActive ? "#0a0a12" : "rgba(10,10,18,0.25)"}`,
-                        color: isActive ? "#ffffff" : "#0a0a12",
-                        padding: "2px 6px",
-                        borderRadius: "3px",
-                        cursor: "pointer",
-                        fontFamily: fontStack,
+                        color: "#0a0a12",
                         fontSize: "10px",
-                        fontWeight: 600,
-                        lineHeight: 1,
-                        minWidth: "26px",
+                        letterSpacing: "0.12em",
+                        textTransform: "uppercase",
+                        fontWeight: 700,
+                        opacity: 0.55,
+                        marginBottom: "8px",
                       }}
                     >
-                      {speed}×
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <span
-                  style={{
-                    color: "#0a0a12",
-                    fontSize: "9px",
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    fontWeight: 700,
-                    opacity: 0.45,
-                    marginRight: "2px",
-                  }}
-                >
-                  DUR
-                </span>
-                {[1500, 3000, 5000, 8000].map((dur) => {
-                  const isActive = stepDuration === dur;
-                  return (
-                    <button
-                      key={dur}
-                      onClick={() => setStepDuration(dur)}
+                      REGION HIGHLIGHT
+                    </div>
+                    <div style={{ display: "flex", gap: "6px", marginBottom: "14px" }}>
+                      {[3000, 5000, 8000, 12000].map((dur) => {
+                        const isActive = playbackSpeed === dur;
+                        return (
+                          <button
+                            key={dur}
+                            onClick={() => setPlaybackSpeed(dur)}
+                            style={{
+                              flex: 1,
+                              background: isActive ? "#0a0a12" : "transparent",
+                              border: `1px solid ${isActive ? "#0a0a12" : "rgba(10,10,18,0.25)"}`,
+                              color: isActive ? "#ffffff" : "#0a0a12",
+                              padding: "6px 0",
+                              borderRadius: "5px",
+                              cursor: "pointer",
+                              fontFamily: fontStack,
+                              fontSize: "12px",
+                              fontWeight: 600,
+                              lineHeight: 1,
+                            }}
+                          >
+                            {dur / 1000}s
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div
                       style={{
-                        background: isActive ? "#0a0a12" : "transparent",
-                        border: `1px solid ${isActive ? "#0a0a12" : "rgba(10,10,18,0.25)"}`,
-                        color: isActive ? "#ffffff" : "#0a0a12",
-                        padding: "2px 6px",
-                        borderRadius: "3px",
-                        cursor: "pointer",
-                        fontFamily: fontStack,
+                        color: "#0a0a12",
                         fontSize: "10px",
-                        fontWeight: 600,
-                        lineHeight: 1,
-                        minWidth: "26px",
+                        letterSpacing: "0.12em",
+                        textTransform: "uppercase",
+                        fontWeight: 700,
+                        opacity: 0.55,
+                        marginBottom: "8px",
                       }}
                     >
-                      {dur / 1000}s
-                    </button>
-                  );
-                })}
+                      TIME BETWEEN STEPS
+                    </div>
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      {[5000, 10000, 15000, 30000].map((dur) => {
+                        const isActive = stepDuration === dur;
+                        return (
+                          <button
+                            key={dur}
+                            onClick={() => setStepDuration(dur)}
+                            style={{
+                              flex: 1,
+                              background: isActive ? "#0a0a12" : "transparent",
+                              border: `1px solid ${isActive ? "#0a0a12" : "rgba(10,10,18,0.25)"}`,
+                              color: isActive ? "#ffffff" : "#0a0a12",
+                              padding: "6px 0",
+                              borderRadius: "5px",
+                              cursor: "pointer",
+                              fontFamily: fontStack,
+                              fontSize: "12px",
+                              fontWeight: 600,
+                              lineHeight: 1,
+                            }}
+                          >
+                            {dur / 1000}s
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
         </div>
 
       </div>
+      )}
+
+      {/* DELETED Step Header block — its contents (prev/counter/next,
+          description, play button, gear) have all moved into the top
+          header bar above. */}
+      {false && activationSteps.length > 0 && currentStep >= 0 && (
+        <div
+          style={{
+            background: "rgba(10,12,20,0.6)",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            padding: "12px 24px 14px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "2px",
+            flexShrink: 0,
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: "12px",
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {/* Center step nav — absolutely positioned so the play+gear
+                cluster on the right doesn't push the step counter off-axis. */}
+            <div
+              style={{
+                position: "absolute",
+                left: "50%",
+                top: "50%",
+                transform: "translate(-50%, -50%)",
+                display: "flex",
+                alignItems: "center",
+                gap: "20px",
+                flexShrink: 0,
+              }}
+            >
+              <button
+                onClick={() => {
+                  if (currentStep > 0) {
+                    if (isPlaying) setIsPlaying(false);
+                    goToStep(currentStep - 1);
+                  }
+                }}
+                disabled={currentStep <= 0}
+                aria-label="Previous step"
+                style={{
+                  background: "transparent",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  color:
+                    currentStep <= 0 ? "rgba(255,255,255,0.2)" : "#e8ecf2",
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "50%",
+                  cursor: currentStep <= 0 ? "default" : "pointer",
+                  fontFamily: fontStack,
+                  fontSize: "20px",
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                ❮
+              </button>
+              <div
+                style={{
+                  fontFamily: displayFont,
+                  fontSize: "30px",
+                  color: "#ffffff",
+                  lineHeight: 1,
+                  letterSpacing: "-0.01em",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Step {currentStep + 1} of {activationSteps.length}
+              </div>
+              <button
+                onClick={() => {
+                  if (currentStep < activationSteps.length - 1) {
+                    if (isPlaying) setIsPlaying(false);
+                    goToStep(currentStep + 1);
+                  }
+                }}
+                disabled={currentStep >= activationSteps.length - 1}
+                aria-label="Next step"
+                style={{
+                  background: "transparent",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  color:
+                    currentStep >= activationSteps.length - 1
+                      ? "rgba(255,255,255,0.2)"
+                      : "#e8ecf2",
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "50%",
+                  cursor:
+                    currentStep >= activationSteps.length - 1
+                      ? "default"
+                      : "pointer",
+                  fontFamily: fontStack,
+                  fontSize: "20px",
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                ❯
+              </button>
+            </div>
+
+            {/* Play / Pause Walkthrough — far right, in normal flex flow
+                so it doesn't disturb the centered step counter. */}
+            <button
+              onClick={togglePlay}
+              style={{
+                background: "#ffffff",
+                border: "none",
+                color: "#0a0a12",
+                padding: "8px 16px 8px 12px",
+                borderRadius: "20px",
+                cursor: "pointer",
+                fontFamily: fontStack,
+                fontSize: "12px",
+                fontWeight: 600,
+                letterSpacing: "0.04em",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                lineHeight: 1,
+                flexShrink: 0,
+              }}
+            >
+              {isPlaying ? (
+                <span style={{ display: "flex", gap: "3px" }}>
+                  <span style={{ width: "3px", height: "10px", background: "#0a0a12", display: "inline-block" }} />
+                  <span style={{ width: "3px", height: "10px", background: "#0a0a12", display: "inline-block" }} />
+                </span>
+              ) : (
+                <span
+                  style={{
+                    width: 0,
+                    height: 0,
+                    borderTop: "6px solid transparent",
+                    borderBottom: "6px solid transparent",
+                    borderLeft: "9px solid #0a0a12",
+                  }}
+                />
+              )}
+              {isPlaying ? "Pause Walkthrough" : "Play Walkthrough"}
+            </button>
+
+            {/* Gear icon — playback settings popover. */}
+            <div
+              ref={settingsAnchorRef}
+              style={{ position: "relative", flexShrink: 0 }}
+            >
+              <button
+                onClick={() => setSettingsOpen((v) => !v)}
+                aria-label="Playback settings"
+                style={{
+                  background: settingsOpen
+                    ? "rgba(255,255,255,0.08)"
+                    : "transparent",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  color: "#e8ecf2",
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "50%",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 0,
+                  fontSize: "22px",
+                  lineHeight: 1,
+                  transition: "background 0.15s ease",
+                }}
+              >
+                <span style={{ display: "block", transform: "translateY(-2px)" }}>⚙</span>
+              </button>
+              {settingsOpen && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 8px)",
+                    right: 0,
+                    background: "#ffffff",
+                    border: "1px solid rgba(10,10,18,0.15)",
+                    borderRadius: "10px",
+                    boxShadow: "0 8px 28px rgba(0,0,0,0.18)",
+                    padding: "14px 16px",
+                    minWidth: "240px",
+                    zIndex: 30,
+                  }}
+                >
+                  <div
+                    style={{
+                      color: "#0a0a12",
+                      fontSize: "10px",
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      fontWeight: 700,
+                      opacity: 0.55,
+                      marginBottom: "8px",
+                    }}
+                  >
+                    REGION HIGHLIGHT
+                  </div>
+                  <div style={{ display: "flex", gap: "6px", marginBottom: "14px" }}>
+                    {[3000, 5000, 8000, 12000].map((dur) => {
+                      const isActive = playbackSpeed === dur;
+                      return (
+                        <button
+                          key={dur}
+                          onClick={() => setPlaybackSpeed(dur)}
+                          style={{
+                            flex: 1,
+                            background: isActive ? "#0a0a12" : "transparent",
+                            border: `1px solid ${isActive ? "#0a0a12" : "rgba(10,10,18,0.25)"}`,
+                            color: isActive ? "#ffffff" : "#0a0a12",
+                            padding: "6px 0",
+                            borderRadius: "5px",
+                            cursor: "pointer",
+                            fontFamily: fontStack,
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            lineHeight: 1,
+                          }}
+                        >
+                          {dur / 1000}s
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div
+                    style={{
+                      color: "#0a0a12",
+                      fontSize: "10px",
+                      letterSpacing: "0.12em",
+                      textTransform: "uppercase",
+                      fontWeight: 700,
+                      opacity: 0.55,
+                      marginBottom: "8px",
+                    }}
+                  >
+                    TIME BETWEEN STEPS
+                  </div>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    {[5000, 10000, 15000, 30000].map((dur) => {
+                      const isActive = stepDuration === dur;
+                      return (
+                        <button
+                          key={dur}
+                          onClick={() => setStepDuration(dur)}
+                          style={{
+                            flex: 1,
+                            background: isActive ? "#0a0a12" : "transparent",
+                            border: `1px solid ${isActive ? "#0a0a12" : "rgba(10,10,18,0.25)"}`,
+                            color: isActive ? "#ffffff" : "#0a0a12",
+                            padding: "6px 0",
+                            borderRadius: "5px",
+                            cursor: "pointer",
+                            fontFamily: fontStack,
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            lineHeight: 1,
+                          }}
+                        >
+                          {dur / 1000}s
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          <div
+            style={{
+              color: "#e8ecf2",
+              fontSize: "15px",
+              lineHeight: 1.4,
+              maxWidth: "640px",
+              textAlign: "center",
+              fontFamily: fontStack,
+              marginTop: "2px",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+            }}
+          >
+            {activationSteps[currentStep]?.description}{" "}
+            <span
+              style={{
+                color: "#8892a4",
+                fontStyle: "italic",
+                fontWeight: 400,
+                marginLeft: "4px",
+              }}
+            >
+              {activationSteps[currentStep]?.time_label}
+            </span>
+          </div>
+        </div>
       )}
 
       <div style={{ display: "flex", flex: 1, overflow: "hidden", minWidth: 0 }}>
@@ -1774,6 +2755,105 @@ export default function BrainViz() {
             onTouchMove={handlePointerMove}
             onTouchEnd={handlePointerUp}
           />
+
+          {/* Top toast — appears only while a scenario is being processed.
+              Spinner on top, processing line just below, scenario text
+              tucked underneath with a bit of breathing room. Disappears
+              the moment activationSteps arrive. */}
+          {(scenarioText || isProcessing) && isProcessing && (
+            <div
+              style={{
+                position: "absolute",
+                top: "16px",
+                left: "50%",
+                transform: "translateX(-50%)",
+                background: "#ffffff",
+                color: "#0a0a12",
+                padding: "16px 24px 18px",
+                borderRadius: "12px",
+                boxShadow: "0 8px 28px rgba(0,0,0,0.35)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "8px",
+                zIndex: 12,
+                maxWidth: "min(70%, 640px)",
+                fontFamily: fontStack,
+              }}
+            >
+              <div className="nc-spinner" aria-hidden="true">
+                <span
+                  className="nc-spinner-dot"
+                  style={{
+                    background:
+                      "radial-gradient(circle at 32% 28%, #ffd9d4 0%, #FF6A3D 35%, #b2210f 100%)",
+                  }}
+                />
+                <span
+                  className="nc-spinner-dot"
+                  style={{
+                    background:
+                      "radial-gradient(circle at 32% 28%, #d4f0ff 0%, #2E9CFF 35%, #0a4d96 100%)",
+                  }}
+                />
+                <span
+                  className="nc-spinner-dot"
+                  style={{
+                    background:
+                      "radial-gradient(circle at 32% 28%, #d2f7e3 0%, #10AC84 35%, #064d3a 100%)",
+                  }}
+                />
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                <span
+                  style={{
+                    color: "#0a0a12",
+                    fontSize: "11px",
+                    letterSpacing: "0.14em",
+                    textTransform: "uppercase",
+                    fontWeight: 700,
+                    opacity: 0.75,
+                  }}
+                >
+                  Processing
+                </span>
+                <span
+                  style={{
+                    color: "#0a0a12",
+                    fontSize: "11px",
+                    opacity: 0.45,
+                    fontWeight: 500,
+                  }}
+                >
+                  approx. 15 seconds
+                </span>
+              </div>
+              <div
+                style={{
+                  fontSize: "14px",
+                  lineHeight: 1.4,
+                  textAlign: "center",
+                  marginTop: "10px",
+                  paddingTop: "10px",
+                  borderTop: "1px solid rgba(10,10,18,0.08)",
+                  width: "100%",
+                }}
+              >
+                <span style={{ color: "#8a95a8", fontWeight: 500 }}>
+                  Processing scenario:
+                </span>{" "}
+                <span style={{ color: "#0a0a12", fontWeight: 600 }}>
+                  {summarizeScenario(scenarioText) || "—"}
+                </span>
+              </div>
+            </div>
+          )}
 
           {false && (
             <div
@@ -2078,23 +3158,23 @@ export default function BrainViz() {
           )}
 
           {/* Model attribution — CC-BY 4.0 requires visible credit. Kept
-              small, dim, and in the bottom-right so it doesn't compete with
-              the brain scene but is always visible. */}
+              small, dim, and pinned just above the bottom controls bar so
+              it doesn't get covered by the translucent overlay. */}
           <a
             href="https://creativecommons.org/licenses/by/4.0/"
             target="_blank"
             rel="noopener noreferrer"
             style={{
               position: "absolute",
-              bottom: "6px",
-              right: "10px",
+              bottom: "100px",
+              right: "14px",
               color: "#6a7a90",
               fontSize: "10px",
               letterSpacing: "0.04em",
               fontFamily: fontStack,
               textDecoration: "none",
               opacity: 0.7,
-              zIndex: 5,
+              zIndex: 7,
               pointerEvents: "auto",
             }}
           >
@@ -2106,65 +3186,117 @@ export default function BrainViz() {
               className="no-scrollbar"
               style={{
                 position: "absolute",
-                bottom: "0",
-                left: "0",
-                right: "0",
-                padding: "12px 18px",
+                top: "120px",
+                bottom: "120px",
+                left: "16px",
+                width: "260px",
+                padding: "12px 6px 0 0",
                 display: "flex",
-                gap: "8px",
-                overflowX: "auto",
-                background: "linear-gradient(to top, rgba(10,10,18,0.95) 40%, rgba(10,10,18,0) 100%)",
+                flexDirection: "column",
+                gap: "10px",
+                overflowY: "auto",
+                pointerEvents: "auto",
+                zIndex: 4,
+                userSelect: "none",
+                WebkitUserSelect: "none",
               }}
             >
-              {callouts
-                .filter((c) => c.intensity > 0.3)
-                .map((callout, i) => {
-                  const region = BRAIN_REGIONS.find((r) => r.id === callout.regionId);
+              {activeCallouts.map((callout, i) => {
+                  const region = BRAIN_REGIONS.find(
+                    (r) => r.id === callout.regionId
+                  );
                   if (!region) return null;
+                  // Tier label from raw intensity. Hierarchy is also
+                  // visible via left-to-right card order, so the tag is
+                  // just a quick reinforcement.
+                  const tier =
+                    callout.intensity >= 0.7
+                      ? "DRIVING"
+                      : callout.intensity >= 0.45
+                      ? "ENGAGED"
+                      : "TRACE";
+                  const isHighlighted = i === highlightedRegionIdx;
                   return (
                     <div
-                      key={i}
+                      key={`${currentStep}-${i}`}
+                      className="nc-region-card"
+                      onClick={() => {
+                        setHighlightedRegionIdx(i);
+                        setRegionCyclePaused(true);
+                      }}
                       style={{
-                        background: "rgba(10,10,18,0.92)",
-                        border: `1px solid ${region.color}55`,
+                        position: "relative",
+                        background: isHighlighted
+                          ? "rgba(20,22,32,0.96)"
+                          : "rgba(10,10,18,0.92)",
+                        border: `1px solid ${
+                          isHighlighted ? region.color : region.color + "55"
+                        }`,
+                        boxShadow: isHighlighted
+                          ? `0 0 18px ${region.color}55, inset 0 0 0 1px ${region.color}aa`
+                          : "none",
                         borderRadius: "6px",
-                        padding: "8px 12px",
-                        minWidth: "220px",
-                        maxWidth: "260px",
+                        padding: "10px 14px 10px 14px",
+                        width: "100%",
                         backdropFilter: "blur(8px)",
                         flexShrink: 0,
+                        cursor: "pointer",
+                        animationDelay: `${i * 165}ms`,
+                        transition:
+                          "background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease",
                       }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-                        <div
-                          style={{
-                            width: "8px",
-                            height: "8px",
-                            borderRadius: "50%",
-                            background: region.color,
-                            boxShadow: `0 0 8px ${region.color}`,
-                          }}
-                        />
-                        <span style={{ color: region.color, fontSize: "12px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                          {region.name}
-                        </span>
+                      {/* Tier tag pinned to upper-right, sitting astride
+                          the border with a slight tilt so it doesn't quite
+                          cover the corner. */}
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: "-7px",
+                          right: "10px",
+                          background: region.color,
+                          color: "#0a0a12",
+                          fontSize: "9px",
+                          fontWeight: 600,
+                          letterSpacing: "0.08em",
+                          padding: "3px 6px 2px",
+                          borderRadius: "3px",
+                          lineHeight: 1,
+                          display: "inline-block",
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.45)",
+                        }}
+                      >
+                        {tier}
+                      </span>
+                      <div
+                        style={{
+                          marginBottom: "4px",
+                          paddingRight: "60px",
+                        }}
+                      >
                         <span
                           style={{
-                            color: "#ffffff",
-                            fontSize: "13px",
-                            marginLeft: "auto",
-                            fontWeight: 700,
-                            lineHeight: 1,
+                            color: region.color,
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            letterSpacing: "0.06em",
+                            textTransform: "uppercase",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            display: "block",
                           }}
-                          aria-label="active"
                         >
-                          ✓
-                        </span>
-                        <span style={{ color: "#c0c8d8", fontSize: "12px", fontWeight: 500 }}>
-                          {Math.round(callout.intensity * 100)}%
+                          {region.name}
                         </span>
                       </div>
-                      <div style={{ color: "#d0d7e2", fontSize: "13px", lineHeight: 1.4 }}>
+                      <div
+                        style={{
+                          color: "#d0d7e2",
+                          fontSize: "13px",
+                          lineHeight: 1.4,
+                        }}
+                      >
                         {callout.reason}
                       </div>
                     </div>
@@ -2173,33 +3305,6 @@ export default function BrainViz() {
             </div>
           )}
 
-          {activationSteps.length > 0 && currentStep >= 0 && (
-            <div
-              style={{
-                position: "absolute",
-                top: "80px",
-                left: "16px",
-                background: "rgba(10,10,18,0.85)",
-                border: "1px solid rgba(255,255,255,0.06)",
-                borderRadius: "6px",
-                padding: "10px 14px",
-                maxWidth: "280px",
-                backdropFilter: "blur(8px)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                <span style={{ color: "#FFC312", fontSize: "14px", fontWeight: 500 }}>
-                  {activationSteps[currentStep]?.time_label}
-                </span>
-                <span style={{ color: "#8a95a8", fontSize: "13px" }}>
-                  Step {currentStep + 1}/{activationSteps.length}
-                </span>
-              </div>
-              <div style={{ color: "#e8ecf2", fontSize: "14px", lineHeight: 1.45 }}>
-                {activationSteps[currentStep]?.description}
-              </div>
-            </div>
-          )}
 
           {errorMsg && (
             <div
@@ -2223,21 +3328,34 @@ export default function BrainViz() {
 
         {showLegend && (
           <div
-            className="thin-scroll"
             style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
               width: "340px",
-              borderLeft: "1px solid rgba(255,255,255,0.06)",
-              padding: "18px 16px",
-              flexShrink: 0,
+              borderLeft: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(0,0,0,0.12)",
+              backdropFilter: "blur(4px)",
+              WebkitBackdropFilter: "blur(4px)",
+              display: "flex",
+              flexDirection: "column",
+              zIndex: 20,
             }}
           >
+            {/* Pinned header — stays put while the groups list scrolls.
+                Tall + opaque enough to fully cover the "Open Brain Region
+                Guide" button in the top header bar that sits behind it. */}
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
                 gap: "10px",
-                marginBottom: "16px",
+                padding: "32px 16px 24px",
+                borderBottom: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(0,0,0,0.85)",
+                flexShrink: 0,
               }}
             >
               <span
@@ -2274,6 +3392,15 @@ export default function BrainViz() {
                 Close <span aria-hidden="true">✕</span>
               </button>
             </div>
+            {/* Scrollable groups list. */}
+            <div
+              className="thin-scroll"
+              style={{
+                flex: 1,
+                padding: "14px 16px",
+                overflowY: "auto",
+              }}
+            >
             {REGION_GROUPS.map((group) => {
               const groupRegions = group.regionIds
                 .map((id) => BRAIN_REGIONS.find((r) => r.id === id))
@@ -2299,12 +3426,12 @@ export default function BrainViz() {
                   style={{
                     marginBottom: "12px",
                     background: groupAnyActive
-                      ? "rgba(255,255,255,0.06)"
-                      : "rgba(255,255,255,0.025)",
+                      ? "rgba(0,0,0,0.55)"
+                      : "rgba(0,0,0,0.42)",
                     border: `1px solid ${
                       groupAnyActive
-                        ? "rgba(255,255,255,0.14)"
-                        : "rgba(255,255,255,0.07)"
+                        ? "rgba(255,255,255,0.16)"
+                        : "rgba(255,255,255,0.08)"
                     }`,
                     borderRadius: "8px",
                     overflow: "hidden",
@@ -2427,8 +3554,32 @@ export default function BrainViz() {
                                 : "none",
                               transition: "all 0.5s ease",
                               flexShrink: 0,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
                             }}
-                          />
+                          >
+                            {act > 0 && (
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  width: "12px",
+                                  height: "12px",
+                                  borderRadius: "50%",
+                                  background: "#ffffff",
+                                  color: "#0a0a12",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: "8px",
+                                  fontWeight: 800,
+                                  lineHeight: 1,
+                                }}
+                              >
+                                ✓
+                              </span>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
@@ -2452,13 +3603,17 @@ export default function BrainViz() {
                               padding: "10px 12px",
                               borderRadius: "4px",
                               background: act > 0
-                                ? `${region.color}18`
+                                ? `${region.color}33`
                                 : "rgba(255,255,255,0.02)",
                               border: `1px solid ${
                                 act > 0
-                                  ? region.color + "55"
+                                  ? region.color + "cc"
                                   : "rgba(255,255,255,0.05)"
                               }`,
+                              boxShadow:
+                                act > 0
+                                  ? `0 0 14px ${region.color}55, inset 0 0 0 1px ${region.color}66`
+                                  : "none",
                               transition: "all 0.5s ease",
                             }}
                           >
@@ -2495,46 +3650,27 @@ export default function BrainViz() {
                                 {region.name}
                               </span>
                               {act > 0 && (
-                                <div
+                                <span
+                                  aria-label="active"
                                   style={{
                                     marginLeft: "auto",
-                                    display: "flex",
+                                    width: "20px",
+                                    height: "20px",
+                                    borderRadius: "50%",
+                                    background: "#ffffff",
+                                    color: "#0a0a12",
+                                    display: "inline-flex",
                                     alignItems: "center",
-                                    gap: "6px",
+                                    justifyContent: "center",
+                                    fontSize: "12px",
+                                    fontWeight: 800,
+                                    lineHeight: 1,
+                                    boxShadow: `0 0 10px ${region.color}99`,
+                                    flexShrink: 0,
                                   }}
                                 >
-                                  <span
-                                    style={{
-                                      color: "#ffffff",
-                                      fontSize: "13px",
-                                      fontWeight: 700,
-                                      lineHeight: 1,
-                                    }}
-                                    aria-hidden="true"
-                                  >
-                                    ✓
-                                  </span>
-                                  <span
-                                    style={{
-                                      color: "#ffffff",
-                                      fontSize: "10px",
-                                      fontWeight: 600,
-                                      letterSpacing: "0.12em",
-                                      textTransform: "uppercase",
-                                    }}
-                                  >
-                                    ACTIVE
-                                  </span>
-                                  <span
-                                    style={{
-                                      color: "#c0c8d8",
-                                      fontSize: "12px",
-                                      fontWeight: 500,
-                                    }}
-                                  >
-                                    {Math.round(act * 100)}%
-                                  </span>
-                                </div>
+                                  ✓
+                                </span>
                               )}
                             </div>
                             <div
@@ -2556,80 +3692,28 @@ export default function BrainViz() {
                 </div>
               );
             })}
+            </div>
           </div>
         )}
       </div>
 
       <div
         style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
           borderTop: "1px solid rgba(255,255,255,0.06)",
-          padding: "12px 24px",
+          padding: "10px 24px 10px",
           display: "flex",
           flexDirection: "column",
-          gap: "10px",
-          flexShrink: 0,
-          background: "rgba(10,10,18,0.95)",
+          gap: "6px",
+          background: "rgba(0,0,0,0.12)",
+          backdropFilter: "blur(4px)",
+          WebkitBackdropFilter: "blur(4px)",
+          zIndex: 6,
         }}
       >
-        {/* Frozen / dimmed STATE row — functionality preserved but visually
-            de-emphasized and non-interactive for now. Centered above the
-            primary scenario input. */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "10px",
-            opacity: 0.2,
-            pointerEvents: "none",
-          }}
-          aria-hidden="true"
-        >
-          <span
-            style={{
-              color: "#c0c8d8",
-              fontSize: "11px",
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              fontWeight: 500,
-              flexShrink: 0,
-            }}
-          >
-            ALTERED STATES
-          </span>
-          <div style={{ display: "flex", gap: "6px" }}>
-            {MODIFIERS.map((mod) => (
-              <div
-                key={mod.id}
-                style={{
-                  background: "transparent",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  color: "#c0c8d8",
-                  padding: "4px 10px 4px 8px",
-                  borderRadius: "14px",
-                  fontFamily: fontStack,
-                  fontSize: "11px",
-                  fontWeight: 500,
-                  whiteSpace: "nowrap",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                }}
-              >
-                <span
-                  style={{
-                    width: "7px",
-                    height: "7px",
-                    borderRadius: "50%",
-                    background: mod.color,
-                    flexShrink: 0,
-                  }}
-                />
-                {mod.name}
-              </div>
-            ))}
-          </div>
-        </div>
 
         {/* Primary scenario input: centered 80%, textarea + reversed-out
             button attached on the right, preset trigger floating below. */}
@@ -2637,13 +3721,13 @@ export default function BrainViz() {
           style={{
             display: "flex",
             justifyContent: "center",
-            padding: "4px 0",
+            padding: "0",
           }}
         >
           <div
             style={{
-              width: "80%",
-              maxWidth: "900px",
+              width: "72%",
+              maxWidth: "780px",
               position: "relative",
             }}
           >
@@ -2691,20 +3775,21 @@ export default function BrainViz() {
                       processScenario();
                     }
                   }}
-                  placeholder="Describe a scenario… e.g. 'Someone throws me a baseball' or of course, 'Trying to remember where I parked'"
-                  rows={2}
+                  placeholder="Describe a scenario… e.g. 'Someone throws me a baseball'"
+                  rows={1}
                   style={{
                     display: "block",
                     width: "100%",
+                    height: "38px",
                     background: "transparent",
                     border: "none",
-                    padding: "14px 44px 14px 18px",
+                    padding: "10px 44px 10px 18px",
                     color: "#ffffff",
                     fontFamily: fontStack,
-                    fontSize: "16px",
+                    fontSize: "15px",
                     outline: "none",
                     resize: "none",
-                    lineHeight: 1.4,
+                    lineHeight: 1.2,
                     textShadow: "1px 1px 2px rgba(12, 14, 22, 0.85)",
                   }}
                 />
@@ -2716,12 +3801,17 @@ export default function BrainViz() {
                   position: "relative",
                   zIndex: 2,
                   marginLeft: "-1px",
+                  height: "38px",
+                  minWidth: "164px",
                   background: isProcessing || !inputText.trim()
                     ? "rgba(255,255,255,0.3)"
                     : "#ffffff",
                   border: "none",
                   color: "#0a0a12",
                   padding: "0 22px",
+                  justifyContent: "center",
+                  userSelect: "none",
+                  WebkitUserSelect: "none",
                   cursor:
                     isProcessing || !inputText.trim()
                       ? "default"
@@ -2765,41 +3855,319 @@ export default function BrainViz() {
               style={{
                 display: "flex",
                 justifyContent: "center",
+                gap: "10px",
                 marginTop: "8px",
               }}
             >
-              <button
-                onClick={() => setPresetSheetOpen(true)}
-                style={{
-                  background: "transparent",
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  color: "#c0c8d8",
-                  padding: "6px 42px",
-                  borderRadius: "14px",
-                  cursor: "pointer",
-                  fontFamily: fontStack,
-                  fontSize: "12px",
-                  fontWeight: 500,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                Browse Preset Scenarios
-                <span aria-hidden="true" style={{ fontSize: "14px" }}>
-                  →
-                </span>
-              </button>
+              {/* Altered States multi-select. Selection shown inline in
+                  the label. UI shell only — selection is not yet wired
+                  into the LLM prompt. */}
+              <div ref={statesAnchorRef} style={{ position: "relative" }}>
+                <button
+                  disabled
+                  aria-disabled="true"
+                  onClick={() => {}}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    color: "rgba(192,200,216,0.35)",
+                    padding: "6px 42px",
+                    borderRadius: "14px",
+                    cursor: "not-allowed",
+                    fontFamily: fontStack,
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    maxWidth: "360px",
+                  }}
+                >
+                  <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    Altered States:{" "}
+                    <span style={{ color: "rgba(255,255,255,0.18)", fontWeight: 400, fontStyle: "italic" }}>
+                      disabled
+                    </span>
+                  </span>
+                </button>
+                {statesPickerOpen && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: "calc(100% + 8px)",
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      background: "rgba(14,16,24,0.98)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: "10px",
+                      boxShadow: "0 14px 40px rgba(0,0,0,0.5)",
+                      padding: "10px 6px 10px",
+                      minWidth: "220px",
+                      zIndex: 30,
+                      backdropFilter: "blur(10px)",
+                      WebkitBackdropFilter: "blur(10px)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "0 10px 8px",
+                      }}
+                    >
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedStateIds([]);
+                        }}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "#7d8ba8",
+                          fontFamily: fontStack,
+                          fontSize: "10px",
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          padding: 0,
+                          letterSpacing: "0.02em",
+                        }}
+                      >
+                        clear
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setStatesPickerOpen(false);
+                        }}
+                        aria-label="Close"
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "#7d8ba8",
+                          fontFamily: fontStack,
+                          fontSize: "11px",
+                          cursor: "pointer",
+                          padding: 0,
+                          lineHeight: 1,
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {MODIFIERS.map((mod) => {
+                      const isSelected = selectedStateIds.includes(mod.id);
+                      return (
+                        <button
+                          key={mod.id}
+                          onClick={() => {
+                            setSelectedStateIds((prev) =>
+                              prev.includes(mod.id)
+                                ? prev.filter((id) => id !== mod.id)
+                                : [...prev, mod.id]
+                            );
+                          }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "10px",
+                            width: "100%",
+                            background: "transparent",
+                            border: "none",
+                            color: "#e0e6ef",
+                            padding: "8px 12px",
+                            fontFamily: fontStack,
+                            fontSize: "13px",
+                            fontWeight: 500,
+                            cursor: "pointer",
+                            textAlign: "left",
+                            borderRadius: "5px",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background =
+                              "rgba(255,255,255,0.05)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "transparent";
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: "14px",
+                              height: "14px",
+                              border: "1px solid rgba(255,255,255,0.4)",
+                              borderRadius: "3px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
+                              background: isSelected
+                                ? "#ffffff"
+                                : "transparent",
+                              color: "#0a0a12",
+                              fontSize: "11px",
+                              fontWeight: 800,
+                              lineHeight: 1,
+                            }}
+                          >
+                            {isSelected ? "✓" : ""}
+                          </span>
+                          {mod.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div ref={presetAnchorRef} style={{ position: "relative" }}>
+                <button
+                  onClick={() => setPresetSheetOpen((v) => !v)}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid rgba(255,255,255,0.14)",
+                    color: "#c0c8d8",
+                    padding: "6px 42px",
+                    borderRadius: "14px",
+                    cursor: "pointer",
+                    fontFamily: fontStack,
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
+                  Browse Preset Scenarios
+                </button>
+                {presetSheetOpen && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: "calc(100% + 8px)",
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      background: "rgba(14,16,24,0.98)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: "10px",
+                      boxShadow: "0 14px 40px rgba(0,0,0,0.5)",
+                      width: "340px",
+                      maxHeight: "440px",
+                      display: "flex",
+                      flexDirection: "column",
+                      zIndex: 30,
+                      backdropFilter: "blur(10px)",
+                      WebkitBackdropFilter: "blur(10px)",
+                    }}
+                  >
+                    {/* Fixed header with title + close X */}
+                    <div
+                      style={{
+                        padding: "12px 14px 10px",
+                        borderBottom: "1px solid rgba(255,255,255,0.08)",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            color: "#ffffff",
+                            fontSize: "13px",
+                            fontWeight: 600,
+                            letterSpacing: "0.02em",
+                            marginBottom: "2px",
+                          }}
+                        >
+                          Preset Scenarios
+                        </div>
+                        <div
+                          style={{
+                            color: "#7d8ba8",
+                            fontSize: "11px",
+                            lineHeight: 1.35,
+                          }}
+                        >
+                          Pick one to load it into the input.
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPresetSheetOpen(false);
+                        }}
+                        aria-label="Close"
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "#7d8ba8",
+                          fontFamily: fontStack,
+                          fontSize: "12px",
+                          cursor: "pointer",
+                          padding: 0,
+                          lineHeight: 1,
+                          marginTop: "2px",
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {/* Scrollable list */}
+                    <div
+                      className="thin-scroll"
+                      style={{
+                        padding: "6px 6px 8px",
+                        overflowY: "auto",
+                        flex: 1,
+                      }}
+                    >
+                      {EXAMPLE_SCENARIOS.map((scenario) => (
+                        <button
+                          key={scenario}
+                          onClick={() => {
+                            setInputText(scenario);
+                            setPresetSheetOpen(false);
+                          }}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            background: "transparent",
+                            border: "none",
+                            color: "#e0e6ef",
+                            padding: "8px 12px",
+                            fontFamily: fontStack,
+                            fontSize: "13px",
+                            fontWeight: 500,
+                            cursor: "pointer",
+                            textAlign: "left",
+                            borderRadius: "5px",
+                            lineHeight: 1.35,
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background =
+                              "rgba(255,255,255,0.05)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "transparent";
+                          }}
+                        >
+                          {scenario}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Preset Scenarios side sheet — slides from the right, overlays
-          the legend. Click outside (backdrop) or the X closes without
-          making a selection. Clicking a scenario populates the input
-          and closes the sheet (user still must press RUN SCENARIO). */}
-      {presetSheetOpen && (
+      {/* DELETED: Preset Scenarios side sheet — replaced by the
+          inline popover above the Browse Preset button. */}
+      {false && presetSheetOpen && (
         <>
           <div
             onClick={() => setPresetSheetOpen(false)}
