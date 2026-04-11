@@ -914,9 +914,12 @@ export default function BrainViz() {
         const targetHeight = 5.2;
         const fitScale = targetHeight / size.y;
         obj.scale.setScalar(fitScale);
+        // Push the head up so the cranium sits around the brain clusters
+        // instead of the brain ending up at the base of the skull.
+        const headYLift = 1.4;
         obj.position.set(
           -center.x * fitScale,
-          -center.y * fitScale,
+          -center.y * fitScale + headYLift,
           -center.z * fitScale
         );
 
