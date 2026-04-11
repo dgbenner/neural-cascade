@@ -55,7 +55,7 @@ const BRAIN_REGIONS = [
     name: "Occipital Lobe",
     description: "Visual processing, color recognition, spatial orientation",
     color: "#0F5FD6",
-    basePos: { x: 0, y: 0.2, z: -0.85 },
+    basePos: { x: 0, y: 0.2, z: -0.77 },
     clusterRadius: 0.25,
     nodeCount: 14,
   },
@@ -63,8 +63,8 @@ const BRAIN_REGIONS = [
     id: "cerebellum",
     name: "Cerebellum",
     description: "Motor coordination, balance, timing, procedural memory",
-    color: "#10AC84",
-    basePos: { x: 0, y: -0.55, z: -0.7 },
+    color: "#4ED968",
+    basePos: { x: 0, y: -0.55, z: -0.63 },
     clusterRadius: 0.3,
     nodeCount: 16,
   },
@@ -72,8 +72,8 @@ const BRAIN_REGIONS = [
     id: "brainstem",
     name: "Brain Stem",
     description: "Breathing, heart rate, consciousness, sleep/wake cycles",
-    color: "#0A7D5E",
-    basePos: { x: 0, y: -0.8, z: -0.3 },
+    color: "#8FD649",
+    basePos: { x: 0, y: -0.8, z: -0.27 },
     clusterRadius: 0.15,
     nodeCount: 8,
   },
@@ -99,7 +99,7 @@ const BRAIN_REGIONS = [
     id: "thalamus",
     name: "Thalamus",
     description: "Sensory relay station, attention regulation, consciousness",
-    color: "#00D88A",
+    color: "#00E5A8",
     basePos: { x: 0, y: 0.0, z: 0.0 },
     clusterRadius: 0.12,
     nodeCount: 8,
@@ -366,6 +366,65 @@ const MODIFIERS = [
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
+// Crude but instant scenario summarizer used by the loading toast.
+// Strips out filler / function words, takes the first few significant
+// content words, and title-cases the result. The goal is a 2–4 word
+// label that reads as "we got the gist" before the slow LLM response
+// arrives — e.g. "I'm meditating in complete silence" → "Meditating
+// Complete Silence". Imperfect but feels responsive and signals intent.
+const SCENARIO_STOP_WORDS = new Set([
+  "i", "im", "ive", "the", "a", "an", "and", "or", "of", "in", "on",
+  "at", "to", "for", "with", "as", "is", "are", "was", "were", "be",
+  "been", "being", "my", "me", "myself", "mine", "your", "you", "very",
+  "really", "just", "again", "still", "also", "even", "yet", "into",
+  "onto", "from", "by", "about", "out", "up", "down", "off", "over",
+  "under", "but", "so", "that", "this", "these", "those", "it", "its",
+  "had", "has", "have", "do", "does", "did", "not",
+]);
+
+function summarizeScenario(text) {
+  if (!text) return "";
+  const words = text
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .split(/[\s,.!?;:]+/)
+    .filter(Boolean);
+  const kept = words.filter((w) => !SCENARIO_STOP_WORDS.has(w));
+  const slice = kept.length > 0 ? kept.slice(0, 4) : words.slice(0, 4);
+  return slice
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+// Per-region target colors used by the brain dot animation. Three states:
+//   resting     — no scenario loaded, baseline mid-shaded look
+//   active      — region IS in the current step, brighter and vivid
+//   desaturated — region is NOT in the current step, greyer and duller
+// Module-level so both the scene-init effect and the animation effect
+// can reference them without re-running closures.
+const REGION_RESTING_COLORS = {};
+const REGION_ACTIVE_COLORS = {};
+const REGION_DESAT_COLORS = {};
+const REGION_ACTIVE_EMISSIVE = {};
+const REGION_DESAT_EMISSIVE = new THREE.Color(0x000000);
+BRAIN_REGIONS.forEach((r) => {
+  const c = new THREE.Color(r.color);
+  REGION_RESTING_COLORS[r.id] = c.clone().multiplyScalar(0.45);
+  REGION_ACTIVE_COLORS[r.id] = c.clone().multiplyScalar(0.85);
+  REGION_ACTIVE_EMISSIVE[r.id] = c.clone();
+  // Fully desaturated AND darkened — strip all chroma, then drop
+  // lightness so the inactive dots recede into a dim gray. Each region
+  // is darkened relative to its own base lightness so brighter colors
+  // step down proportionally with darker ones.
+  const hsl = { h: 0, s: 0, l: 0 };
+  c.getHSL(hsl);
+  REGION_DESAT_COLORS[r.id] = new THREE.Color().setHSL(
+    0,
+    0,
+    hsl.l * 0.18
+  );
+});
+
 // Produce the visual activations for a given modifier in the resting state
 // (no scenario running). Negative offsets clamp to 0 — we can't dim below
 // dormant, only add glow.
@@ -406,17 +465,22 @@ function generateClusterNodes(region) {
   const nodes = [];
   // Regions that sit on the midline (x≈0) were piling up in a thin vertical
   // stripe. Give them an extra lateral stretch so they breathe out toward
-  // the ears instead of stacking on top of each other.
+  // the ears instead of stacking on top of each other. The defaults
+  // also stretch — bigger envelopes mean adjacent clusters overlap and
+  // fill the negative space between regions.
   const isCenterline = Math.abs(region.basePos.x) < 0.2;
-  const xStretch = isCenterline ? 1.9 : 1.25;
-  const yStretch = 1.15;
-  const zStretch = 1.2;
-  for (let i = 0; i < region.nodeCount; i++) {
+  const xStretch = isCenterline ? 1.95 : 1.32;
+  const yStretch = 1.22;
+  const zStretch = 1.25;
+  // ~3.2× the configured node count per region — denser clusters carry
+  // the shape of each region without needing inter-region threads.
+  const targetCount = Math.floor(region.nodeCount * 3.2);
+  for (let i = 0; i < targetCount; i++) {
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
-    // Bias radius outward (was 0.3 + 0.7*r) so clusters fill their volume
-    // instead of clumping near the center point.
-    const r = region.clusterRadius * (0.55 + Math.random() * 0.55);
+    // Bias radius outward AND extend the upper bound, so each cluster
+    // pushes into its neighbors instead of holding a tight ball.
+    const r = region.clusterRadius * (0.55 + Math.random() * 0.6);
     nodes.push({
       x: region.basePos.x + r * Math.sin(phi) * Math.cos(theta) * xStretch,
       y: region.basePos.y + r * Math.sin(phi) * Math.sin(theta) * yStretch,
@@ -798,8 +862,15 @@ export default function BrainViz() {
   const envGroupRef = useRef(null);
   // Region currently highlighted by the per-step card cycle. Animation
   // loop reads this every frame to give the highlighted region's nodes
-  // an extra glow + pulse on top of their normal activation level.
+  // an extra pulse on top of their normal activation level.
   const highlightedRegionIdRef = useRef(null);
+  // Per-region "highlight weight" 0..1 — lerps toward 1 when a region
+  // is the current highlight, toward 0 when it's not. The animation
+  // loop multiplies the highlight pulse amplitude by this weight, so
+  // an outgoing region's fast pulse fades naturally while an incoming
+  // region's pulse fades in — creating an overlap rather than a hard
+  // hand-off between cards.
+  const regionWeightsRef = useRef({});
   const landmarkLinesRef = useRef(null);
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
@@ -874,6 +945,7 @@ export default function BrainViz() {
   const [presetSheetOpen, setPresetSheetOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsAnchorRef = useRef(null);
+  const presetAnchorRef = useRef(null);
 
   // Multi-select Altered States picker. The selection is held in state but
   // not yet wired into the LLM prompt — UI shell first, behavior later.
@@ -883,7 +955,7 @@ export default function BrainViz() {
 
   // Close popovers when clicking outside them.
   useEffect(() => {
-    if (!settingsOpen && !statesPickerOpen) return;
+    if (!settingsOpen && !statesPickerOpen && !presetSheetOpen) return;
     const onDocClick = (e) => {
       if (
         settingsOpen &&
@@ -899,10 +971,17 @@ export default function BrainViz() {
       ) {
         setStatesPickerOpen(false);
       }
+      if (
+        presetSheetOpen &&
+        presetAnchorRef.current &&
+        !presetAnchorRef.current.contains(e.target)
+      ) {
+        setPresetSheetOpen(false);
+      }
     };
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
-  }, [settingsOpen, statesPickerOpen]);
+  }, [settingsOpen, statesPickerOpen, presetSheetOpen]);
 
   // When the active modifier changes, update the visible activations.
   // If a scenario step is currently showing, re-apply the modifier math to
@@ -970,20 +1049,20 @@ export default function BrainViz() {
     brainContentGroup.scale.setScalar(0.9);
     brainGroup.add(brainContentGroup);
 
-    // Low ambient so the shadowed side of each sphere sits deep — contrast
-    // over blend. User wants the highlight crisp and the shadow harsh.
-    const ambient = new THREE.AmbientLight(0x223044, 0.35);
+    // Balanced lighting so every sphere shows a clear lit side, mid
+    // tone, and shadow side at all times — even active/highlighted dots
+    // don't blow out into a flat blob.
+    const ambient = new THREE.AmbientLight(0x2a3a55, 0.4);
     scene.add(ambient);
 
-    // Hard key light from upper-front-left: high intensity, warm, creates
-    // a bright lit hemisphere on every sphere.
-    const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
+    // Key light from upper-front-left.
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
     keyLight.position.set(-3, 4, 5);
     scene.add(keyLight);
 
-    // Very subtle cool fill — just enough so the dark side isn't pure
-    // black, but the chiaroscuro stays obvious.
-    const fillLight = new THREE.DirectionalLight(0x4a6a9a, 0.15);
+    // Cool fill from the opposite side keeps the shadow side from
+    // collapsing into pure black so the mid-tones survive.
+    const fillLight = new THREE.DirectionalLight(0x6a88c4, 0.5);
     fillLight.position.set(4, -1, -2);
     scene.add(fillLight);
 
@@ -1000,21 +1079,24 @@ export default function BrainViz() {
     const nodeMeshes = [];
     allNodes.forEach((node) => {
       const region = BRAIN_REGIONS.find((r) => r.id === node.regionId);
-      // High segment count so highlights land smoothly and the silhouette
-      // reads as a true sphere, not a faceted ball.
-      const geo = new THREE.SphereGeometry(node.baseSize, 32, 32);
+      // 4× more dots → bring segment count down to keep total triangle
+      // count manageable. Spheres are small enough that 16 still reads
+      // round and shaded.
+      const geo = new THREE.SphereGeometry(node.baseSize, 16, 16);
       // Standard material reacts to the scene lights and also supports an
       // emissive channel we can drive for the activation "glow." Base
       // color is darkened so inactive nodes sit back; emissive does the
       // heavy lifting when a region lights up.
       const baseColor = new THREE.Color(region.color);
-      const darkBase = baseColor.clone().multiplyScalar(0.35);
+      const litBase = baseColor.clone().multiplyScalar(0.45);
       const mat = new THREE.MeshStandardMaterial({
-        color: darkBase,
+        color: litBase.clone(),
         emissive: baseColor,
-        emissiveIntensity: 0.25,
-        roughness: 0.18,
-        metalness: 0.25,
+        emissiveIntensity: 0.08,
+        roughness: 0.5,
+        metalness: 0.05,
+        transparent: true,
+        opacity: 1,
       });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(node.x, node.y, node.z);
@@ -1029,12 +1111,20 @@ export default function BrainViz() {
         new THREE.Vector3(allNodes[a].x, allNodes[a].y, allNodes[a].z),
         new THREE.Vector3(allNodes[b].x, allNodes[b].y, allNodes[b].z),
       ]);
+      // Intra-region lines use the region's own color so each cluster's
+      // internal mesh reads as a tinted web. Inter-region lines stay
+      // grey but get hidden — they tangle the picture across regions.
+      const isIntra = type === "intra";
+      const intraRegion = isIntra
+        ? BRAIN_REGIONS.find((r) => r.id === allNodes[a].regionId)
+        : null;
       const mat = new THREE.LineBasicMaterial({
-        color: 0x334455,
+        color: intraRegion ? new THREE.Color(intraRegion.color) : 0x334455,
         transparent: true,
-        opacity: type === "intra" ? 0.04 : 0.02,
+        opacity: isIntra ? 0.09 : 0.01,
       });
       const line = new THREE.Line(geo, mat);
+      line.visible = isIntra;
       brainContentGroup.add(line);
       connectionLines.push({ line, a, b, type });
     });
@@ -1310,65 +1400,104 @@ export default function BrainViz() {
       const nodes = nodesRef.current;
       const meshes = nodeMeshesRef.current;
 
+      // Lerp every known region's highlight weight toward its target
+      // (1 if it's the current highlight, 0 otherwise). The lerp factor
+      // controls the overlap window — small enough that an outgoing
+      // region's fast pulse continues for a beat after the next region
+      // takes over, fading as the incoming one ramps up.
       const highlightedRegionId = highlightedRegionIdRef.current;
+      const weights = regionWeightsRef.current;
+      const lerpRate = 0.045;
+      BRAIN_REGIONS.forEach((r) => {
+        const target = highlightedRegionId === r.id ? 1 : 0;
+        const current = weights[r.id] || 0;
+        weights[r.id] = current + (target - current) * lerpRate;
+      });
+
+      // Pick the per-region target color, target emissive, and target
+      // emissive intensity for THIS frame. The emissive channel is what
+      // was leaking chroma onto the inactive spheres — zeroing it for
+      // inactive regions lets the dark gray diffuse + lighting do the
+      // work, so they read as dark gray with visible highlights.
+      const stepLoaded = Object.values(activations).some((v) => v > 0);
+      const colorTargets = {};
+      const emissiveTargets = {};
+      const emissiveIntensityTargets = {};
+      BRAIN_REGIONS.forEach((r) => {
+        const a = activations[r.id] || 0;
+        if (!stepLoaded) {
+          colorTargets[r.id] = REGION_RESTING_COLORS[r.id];
+          emissiveTargets[r.id] = REGION_ACTIVE_EMISSIVE[r.id];
+          emissiveIntensityTargets[r.id] = 0.08;
+        } else if (a > 0) {
+          colorTargets[r.id] = REGION_ACTIVE_COLORS[r.id];
+          emissiveTargets[r.id] = REGION_ACTIVE_EMISSIVE[r.id];
+          emissiveIntensityTargets[r.id] = 0.1;
+        } else {
+          colorTargets[r.id] = REGION_DESAT_COLORS[r.id];
+          emissiveTargets[r.id] = REGION_DESAT_EMISSIVE;
+          emissiveIntensityTargets[r.id] = 0;
+        }
+      });
+
       meshes.forEach((mesh, i) => {
         const node = nodes[i];
         const activation = activations[node.regionId] || 0;
-        const isHighlighted =
-          highlightedRegionId && node.regionId === highlightedRegionId;
+        const w = weights[node.regionId] || 0;
 
-        // Drive the emissive "glow" instead of opacity so the lit/shadowed
-        // sides from the key light still read. Inactive = gentle idle pulse,
-        // active = bright bloom with stronger pulse. Highlighted region
-        // gets a much bigger pulse and a higher floor so it visibly leads.
-        const pulse = Math.sin(t * 3 + node.pulseOffset) * 0.5 + 0.5;
-        // Faster, deeper pulse on the highlighted region so it reads as
-        // "the one being explained right now."
-        const highlightPulse =
-          Math.sin(t * 7.5 + node.pulseOffset) * 0.5 + 0.5;
-        const baseIntensity = 0.18 + pulse * 0.08;
-        const activeIntensity =
-          0.9 + activation * 0.6 + pulse * activation * 0.5;
-        const highlightedIntensity =
-          2.4 + activation * 0.9 + highlightPulse * 1.2;
-        mesh.material.emissiveIntensity = isHighlighted
-          ? highlightedIntensity
-          : activation > 0
-          ? activeIntensity
-          : baseIntensity;
+        const slowPulse01 =
+          Math.sin(t * 3 + node.pulseOffset) * 0.5 + 0.5;
+        // Symmetric fast oscillation (-1..1) so the highlighted region
+        // shrinks below baseline AND blooms above it on each beat.
+        const fastOsc = Math.sin(t * 7.5 + node.pulseOffset);
 
-        const baseScale = 1;
-        const activeScale = 1 + activation * 0.8 + pulse * activation * 0.4;
-        const highlightedScale =
-          1.7 + activation * 0.5 + highlightPulse * 0.5;
-        const scale = isHighlighted
-          ? highlightedScale
-          : activation > 0
-          ? activeScale
-          : baseScale;
-        mesh.scale.setScalar(scale);
+        // Smoothly lerp the diffuse color toward its target for this
+        // frame — active regions ramp toward bright, inactive regions
+        // ramp toward fully-desaturated dark gray, both over ~0.5s.
+        mesh.material.color.lerp(colorTargets[node.regionId], 0.05);
+        // Lerp the emissive color too — the constant 8% colored glow
+        // is what was leaking chroma onto inactive spheres. Inactive
+        // regions ramp emissive toward black so the chroma fades.
+        mesh.material.emissive.lerp(emissiveTargets[node.regionId], 0.05);
+        // Lerp emissive intensity toward the per-state target (0 for
+        // inactive regions, low resting baseline otherwise).
+        const targetIntensity = emissiveIntensityTargets[node.regionId];
+        const intensityWithPulse =
+          targetIntensity > 0 ? targetIntensity + slowPulse01 * 0.03 : 0;
+        mesh.material.emissiveIntensity =
+          mesh.material.emissiveIntensity +
+          (intensityWithPulse - mesh.material.emissiveIntensity) * 0.05;
+
+        // Scale = baseline + slow normal pulse (always present when
+        // active) + fast highlight pulse (amplitude weighted by w, so
+        // it eases in for the incoming region and eases out for the
+        // outgoing one — creating the overlap the user asked for).
+        const baseSize = 1;
+        const activeOffset = activation * 0.5;
+        const normalPulse =
+          (slowPulse01 - 0.5) * 2 * activation * 0.3;
+        const highlightPulse = fastOsc * 0.7 * w;
+        mesh.scale.setScalar(
+          baseSize + activeOffset + normalPulse + highlightPulse
+        );
       });
 
-      connectionLinesRef.current.forEach(({ line, a, b, type }) => {
-        const regionA = nodes[a].regionId;
-        const regionB = nodes[b].regionId;
-        const actA = activations[regionA] || 0;
-        const actB = activations[regionB] || 0;
-        const avgAct = (actA + actB) / 2;
-
-        if (avgAct > 0) {
-          const regionObjA = BRAIN_REGIONS.find((r) => r.id === regionA);
-          const regionObjB = BRAIN_REGIONS.find((r) => r.id === regionB);
-          const color = new THREE.Color(regionObjA.color).lerp(
-            new THREE.Color(regionObjB.color),
-            0.5
-          );
-          line.material.color = color;
-          line.material.opacity = 0.25 + avgAct * 0.6;
-        } else {
-          line.material.color = new THREE.Color(0x6a7a90);
-          line.material.opacity = type === "intra" ? 0.2 : 0.12;
-        }
+      connectionLinesRef.current.forEach(({ line, a, type }) => {
+        // Inter-region lines stay hidden + we don't bother updating them.
+        if (type !== "intra") return;
+        const regionId = nodes[a].regionId;
+        // Match the dot color/opacity logic so the intra-region web
+        // tracks each region's resting / active / desaturated state.
+        const targetColor = colorTargets[regionId];
+        line.material.color.lerp(targetColor, 0.06);
+        const stateOpacity = !stepLoaded
+          ? 0.09
+          : (activations[regionId] || 0) > 0
+          ? 0.15
+          : 0.02;
+        line.material.opacity =
+          line.material.opacity +
+          (stateOpacity - line.material.opacity) * 0.06;
       });
 
       rendererRef.current.render(sceneRef.current, cameraRef.current);
@@ -1507,11 +1636,23 @@ export default function BrainViz() {
 
   const [highlightedRegionIdx, setHighlightedRegionIdx] = useState(0);
   const [regionCyclePaused, setRegionCyclePaused] = useState(false);
+  // Cards stagger in on every step transition. The highlight cycle
+  // doesn't start until they've finished entering, so the user sees the
+  // construction first, then the highlight begins.
+  const [cardsEntered, setCardsEntered] = useState(false);
 
-  // Reset cycle whenever the step changes — start from the dominant card.
+  // Reset cycle whenever the step changes — start from the dominant card,
+  // hold cards-entered false, and flip it true after the stagger completes.
   useEffect(() => {
     setHighlightedRegionIdx(0);
     setRegionCyclePaused(false);
+    setCardsEntered(false);
+    if (currentStep < 0 || activationSteps.length === 0) return;
+    const cardCount = activeCallouts.length || 1;
+    const totalStagger = 570 + (cardCount - 1) * 165;
+    const t = setTimeout(() => setCardsEntered(true), totalStagger + 60);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep]);
 
   // Mirror the highlighted region ID into a ref so the animation loop
@@ -1523,8 +1664,10 @@ export default function BrainViz() {
 
   // Auto-cycle the highlighted card. Cadence is the user-set Region
   // Highlight duration (independent of step length). Pauses when the
-  // user clicks any card.
+  // user clicks any card. Waits until cards have finished their
+  // entrance stagger so the construction reads first.
   useEffect(() => {
+    if (!cardsEntered) return;
     if (regionCyclePaused) return;
     if (activeCallouts.length <= 1) return;
     const t = setTimeout(() => {
@@ -1538,6 +1681,7 @@ export default function BrainViz() {
     regionCyclePaused,
     activeCallouts.length,
     playbackSpeed,
+    cardsEntered,
   ]);
 
   const fontStack = "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -2670,10 +2814,10 @@ export default function BrainViz() {
                 }}
               >
                 <span style={{ color: "#8a95a8", fontWeight: 500 }}>
-                  Running scenario:
+                  Processing scenario:
                 </span>{" "}
                 <span style={{ color: "#0a0a12", fontWeight: 600 }}>
-                  {scenarioText || "—"}
+                  {summarizeScenario(scenarioText) || "—"}
                 </span>
               </div>
             </div>
@@ -2982,23 +3126,23 @@ export default function BrainViz() {
           )}
 
           {/* Model attribution — CC-BY 4.0 requires visible credit. Kept
-              small, dim, and in the bottom-right so it doesn't compete with
-              the brain scene but is always visible. */}
+              small, dim, and pinned just above the bottom controls bar so
+              it doesn't get covered by the translucent overlay. */}
           <a
             href="https://creativecommons.org/licenses/by/4.0/"
             target="_blank"
             rel="noopener noreferrer"
             style={{
               position: "absolute",
-              bottom: "6px",
-              right: "10px",
+              bottom: "100px",
+              right: "14px",
               color: "#6a7a90",
               fontSize: "10px",
               letterSpacing: "0.04em",
               fontFamily: fontStack,
               textDecoration: "none",
               opacity: 0.7,
-              zIndex: 5,
+              zIndex: 7,
               pointerEvents: "auto",
             }}
           >
@@ -3010,15 +3154,17 @@ export default function BrainViz() {
               className="no-scrollbar"
               style={{
                 position: "absolute",
-                bottom: "0",
-                left: "0",
-                right: "0",
-                padding: "12px 18px",
+                top: "120px",
+                bottom: "120px",
+                left: "16px",
+                width: "260px",
+                padding: "12px 6px 0 0",
                 display: "flex",
-                gap: "8px",
-                overflowX: "auto",
-                background:
-                  "linear-gradient(to top, rgba(10,10,18,0.95) 40%, rgba(10,10,18,0) 100%)",
+                flexDirection: "column",
+                gap: "10px",
+                overflowY: "auto",
+                pointerEvents: "auto",
+                zIndex: 4,
               }}
             >
               {activeCallouts.map((callout, i) => {
@@ -3038,12 +3184,14 @@ export default function BrainViz() {
                   const isHighlighted = i === highlightedRegionIdx;
                   return (
                     <div
-                      key={i}
+                      key={`${currentStep}-${i}`}
+                      className="nc-region-card"
                       onClick={() => {
                         setHighlightedRegionIdx(i);
                         setRegionCyclePaused(true);
                       }}
                       style={{
+                        position: "relative",
                         background: isHighlighted
                           ? "rgba(20,22,32,0.96)"
                           : "rgba(10,10,18,0.92)",
@@ -3054,33 +3202,44 @@ export default function BrainViz() {
                           ? `0 0 18px ${region.color}55, inset 0 0 0 1px ${region.color}aa`
                           : "none",
                         borderRadius: "6px",
-                        padding: "8px 12px",
-                        minWidth: "220px",
-                        maxWidth: "260px",
+                        padding: "10px 14px 10px 14px",
+                        width: "100%",
                         backdropFilter: "blur(8px)",
                         flexShrink: 0,
                         cursor: "pointer",
+                        animationDelay: `${i * 165}ms`,
                         transition:
                           "background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease",
                       }}
                     >
-                      <div
+                      {/* Tier tag pinned to upper-right, sitting astride
+                          the border with a slight tilt so it doesn't quite
+                          cover the corner. */}
+                      <span
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          marginBottom: "4px",
+                          position: "absolute",
+                          top: "-7px",
+                          right: "10px",
+                          background: region.color,
+                          color: "#0a0a12",
+                          fontSize: "9px",
+                          fontWeight: 600,
+                          letterSpacing: "0.08em",
+                          padding: "3px 6px 2px",
+                          borderRadius: "3px",
+                          lineHeight: 1,
+                          display: "inline-block",
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.45)",
                         }}
                       >
-                        <div
-                          style={{
-                            width: "8px",
-                            height: "8px",
-                            borderRadius: "50%",
-                            background: region.color,
-                            boxShadow: `0 0 8px ${region.color}`,
-                          }}
-                        />
+                        {tier}
+                      </span>
+                      <div
+                        style={{
+                          marginBottom: "4px",
+                          paddingRight: "60px",
+                        }}
+                      >
                         <span
                           style={{
                             color: region.color,
@@ -3088,26 +3247,13 @@ export default function BrainViz() {
                             fontWeight: 600,
                             letterSpacing: "0.06em",
                             textTransform: "uppercase",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            display: "block",
                           }}
                         >
                           {region.name}
-                        </span>
-                        <span
-                          style={{
-                            marginLeft: "auto",
-                            background: region.color,
-                            color: "#0a0a12",
-                            fontSize: "9px",
-                            fontWeight: 500,
-                            letterSpacing: "0.08em",
-                            padding: "3px 6px 2px",
-                            borderRadius: "3px",
-                            lineHeight: 1,
-                            transform: "translateY(1px)",
-                            display: "inline-block",
-                          }}
-                        >
-                          {tier}
                         </span>
                       </div>
                       <div
@@ -3148,21 +3294,34 @@ export default function BrainViz() {
 
         {showLegend && (
           <div
-            className="thin-scroll"
             style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
               width: "340px",
-              borderLeft: "1px solid rgba(255,255,255,0.06)",
-              padding: "18px 16px",
-              flexShrink: 0,
+              borderLeft: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(0,0,0,0.12)",
+              backdropFilter: "blur(4px)",
+              WebkitBackdropFilter: "blur(4px)",
+              display: "flex",
+              flexDirection: "column",
+              zIndex: 20,
             }}
           >
+            {/* Pinned header — stays put while the groups list scrolls.
+                Tall + opaque enough to fully cover the "Open Brain Region
+                Guide" button in the top header bar that sits behind it. */}
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
                 gap: "10px",
-                marginBottom: "16px",
+                padding: "32px 16px 24px",
+                borderBottom: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(0,0,0,0.85)",
+                flexShrink: 0,
               }}
             >
               <span
@@ -3199,6 +3358,15 @@ export default function BrainViz() {
                 Close <span aria-hidden="true">✕</span>
               </button>
             </div>
+            {/* Scrollable groups list. */}
+            <div
+              className="thin-scroll"
+              style={{
+                flex: 1,
+                padding: "14px 16px",
+                overflowY: "auto",
+              }}
+            >
             {REGION_GROUPS.map((group) => {
               const groupRegions = group.regionIds
                 .map((id) => BRAIN_REGIONS.find((r) => r.id === id))
@@ -3224,12 +3392,12 @@ export default function BrainViz() {
                   style={{
                     marginBottom: "12px",
                     background: groupAnyActive
-                      ? "rgba(255,255,255,0.06)"
-                      : "rgba(255,255,255,0.025)",
+                      ? "rgba(0,0,0,0.55)"
+                      : "rgba(0,0,0,0.42)",
                     border: `1px solid ${
                       groupAnyActive
-                        ? "rgba(255,255,255,0.14)"
-                        : "rgba(255,255,255,0.07)"
+                        ? "rgba(255,255,255,0.16)"
+                        : "rgba(255,255,255,0.08)"
                     }`,
                     borderRadius: "8px",
                     overflow: "hidden",
@@ -3352,8 +3520,32 @@ export default function BrainViz() {
                                 : "none",
                               transition: "all 0.5s ease",
                               flexShrink: 0,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
                             }}
-                          />
+                          >
+                            {act > 0 && (
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  width: "12px",
+                                  height: "12px",
+                                  borderRadius: "50%",
+                                  background: "#ffffff",
+                                  color: "#0a0a12",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: "8px",
+                                  fontWeight: 800,
+                                  lineHeight: 1,
+                                }}
+                              >
+                                ✓
+                              </span>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
@@ -3377,13 +3569,17 @@ export default function BrainViz() {
                               padding: "10px 12px",
                               borderRadius: "4px",
                               background: act > 0
-                                ? `${region.color}18`
+                                ? `${region.color}33`
                                 : "rgba(255,255,255,0.02)",
                               border: `1px solid ${
                                 act > 0
-                                  ? region.color + "55"
+                                  ? region.color + "cc"
                                   : "rgba(255,255,255,0.05)"
                               }`,
+                              boxShadow:
+                                act > 0
+                                  ? `0 0 14px ${region.color}55, inset 0 0 0 1px ${region.color}66`
+                                  : "none",
                               transition: "all 0.5s ease",
                             }}
                           >
@@ -3420,46 +3616,27 @@ export default function BrainViz() {
                                 {region.name}
                               </span>
                               {act > 0 && (
-                                <div
+                                <span
+                                  aria-label="active"
                                   style={{
                                     marginLeft: "auto",
-                                    display: "flex",
+                                    width: "20px",
+                                    height: "20px",
+                                    borderRadius: "50%",
+                                    background: "#ffffff",
+                                    color: "#0a0a12",
+                                    display: "inline-flex",
                                     alignItems: "center",
-                                    gap: "6px",
+                                    justifyContent: "center",
+                                    fontSize: "12px",
+                                    fontWeight: 800,
+                                    lineHeight: 1,
+                                    boxShadow: `0 0 10px ${region.color}99`,
+                                    flexShrink: 0,
                                   }}
                                 >
-                                  <span
-                                    style={{
-                                      color: "#ffffff",
-                                      fontSize: "13px",
-                                      fontWeight: 700,
-                                      lineHeight: 1,
-                                    }}
-                                    aria-hidden="true"
-                                  >
-                                    ✓
-                                  </span>
-                                  <span
-                                    style={{
-                                      color: "#ffffff",
-                                      fontSize: "10px",
-                                      fontWeight: 600,
-                                      letterSpacing: "0.12em",
-                                      textTransform: "uppercase",
-                                    }}
-                                  >
-                                    ACTIVE
-                                  </span>
-                                  <span
-                                    style={{
-                                      color: "#c0c8d8",
-                                      fontSize: "12px",
-                                      fontWeight: 500,
-                                    }}
-                                  >
-                                    {Math.round(act * 100)}%
-                                  </span>
-                                </div>
+                                  ✓
+                                </span>
                               )}
                             </div>
                             <div
@@ -3481,6 +3658,7 @@ export default function BrainViz() {
                 </div>
               );
             })}
+            </div>
           </div>
         )}
       </div>
@@ -3590,12 +3768,14 @@ export default function BrainViz() {
                   zIndex: 2,
                   marginLeft: "-1px",
                   height: "38px",
+                  minWidth: "164px",
                   background: isProcessing || !inputText.trim()
                     ? "rgba(255,255,255,0.3)"
                     : "#ffffff",
                   border: "none",
                   color: "#0a0a12",
                   padding: "0 22px",
+                  justifyContent: "center",
                   cursor:
                     isProcessing || !inputText.trim()
                       ? "default"
@@ -3648,14 +3828,16 @@ export default function BrainViz() {
                   into the LLM prompt. */}
               <div ref={statesAnchorRef} style={{ position: "relative" }}>
                 <button
-                  onClick={() => setStatesPickerOpen((v) => !v)}
+                  disabled
+                  aria-disabled="true"
+                  onClick={() => {}}
                   style={{
                     background: "transparent",
-                    border: "1px solid rgba(255,255,255,0.14)",
-                    color: "#c0c8d8",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    color: "rgba(192,200,216,0.35)",
                     padding: "6px 42px",
                     borderRadius: "14px",
-                    cursor: "pointer",
+                    cursor: "not-allowed",
                     fontFamily: fontStack,
                     fontSize: "12px",
                     fontWeight: 500,
@@ -3667,22 +3849,9 @@ export default function BrainViz() {
                 >
                   <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     Altered States:{" "}
-                    {selectedStateIds.length > 0 ? (
-                      <span style={{ color: "#ffffff" }}>
-                        {selectedStateIds
-                          .map(
-                            (id) =>
-                              MODIFIERS.find((m) => m.id === id)?.shortName ||
-                              MODIFIERS.find((m) => m.id === id)?.name
-                          )
-                          .filter(Boolean)
-                          .join(", ")}
-                      </span>
-                    ) : (
-                      <span style={{ color: "rgba(255,255,255,0.18)", fontWeight: 400 }}>
-                        none
-                      </span>
-                    )}
+                    <span style={{ color: "rgba(255,255,255,0.18)", fontWeight: 400, fontStyle: "italic" }}>
+                      disabled
+                    </span>
                   </span>
                 </button>
                 {statesPickerOpen && (
@@ -3814,38 +3983,155 @@ export default function BrainViz() {
                   </div>
                 )}
               </div>
-              <button
-                onClick={() => setPresetSheetOpen(true)}
-                style={{
-                  background: "transparent",
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  color: "#c0c8d8",
-                  padding: "6px 42px",
-                  borderRadius: "14px",
-                  cursor: "pointer",
-                  fontFamily: fontStack,
-                  fontSize: "12px",
-                  fontWeight: 500,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                Browse Preset Scenarios
-                <span aria-hidden="true" style={{ fontSize: "14px" }}>
-                  →
-                </span>
-              </button>
+              <div ref={presetAnchorRef} style={{ position: "relative" }}>
+                <button
+                  onClick={() => setPresetSheetOpen((v) => !v)}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid rgba(255,255,255,0.14)",
+                    color: "#c0c8d8",
+                    padding: "6px 42px",
+                    borderRadius: "14px",
+                    cursor: "pointer",
+                    fontFamily: fontStack,
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
+                  Browse Preset Scenarios
+                </button>
+                {presetSheetOpen && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: "calc(100% + 8px)",
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      background: "rgba(14,16,24,0.98)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: "10px",
+                      boxShadow: "0 14px 40px rgba(0,0,0,0.5)",
+                      width: "340px",
+                      maxHeight: "440px",
+                      display: "flex",
+                      flexDirection: "column",
+                      zIndex: 30,
+                      backdropFilter: "blur(10px)",
+                      WebkitBackdropFilter: "blur(10px)",
+                    }}
+                  >
+                    {/* Fixed header with title + close X */}
+                    <div
+                      style={{
+                        padding: "12px 14px 10px",
+                        borderBottom: "1px solid rgba(255,255,255,0.08)",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            color: "#ffffff",
+                            fontSize: "13px",
+                            fontWeight: 600,
+                            letterSpacing: "0.02em",
+                            marginBottom: "2px",
+                          }}
+                        >
+                          Preset Scenarios
+                        </div>
+                        <div
+                          style={{
+                            color: "#7d8ba8",
+                            fontSize: "11px",
+                            lineHeight: 1.35,
+                          }}
+                        >
+                          Pick one to load it into the input.
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPresetSheetOpen(false);
+                        }}
+                        aria-label="Close"
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "#7d8ba8",
+                          fontFamily: fontStack,
+                          fontSize: "12px",
+                          cursor: "pointer",
+                          padding: 0,
+                          lineHeight: 1,
+                          marginTop: "2px",
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {/* Scrollable list */}
+                    <div
+                      className="thin-scroll"
+                      style={{
+                        padding: "6px 6px 8px",
+                        overflowY: "auto",
+                        flex: 1,
+                      }}
+                    >
+                      {EXAMPLE_SCENARIOS.map((scenario) => (
+                        <button
+                          key={scenario}
+                          onClick={() => {
+                            setInputText(scenario);
+                            setPresetSheetOpen(false);
+                          }}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            background: "transparent",
+                            border: "none",
+                            color: "#e0e6ef",
+                            padding: "8px 12px",
+                            fontFamily: fontStack,
+                            fontSize: "13px",
+                            fontWeight: 500,
+                            cursor: "pointer",
+                            textAlign: "left",
+                            borderRadius: "5px",
+                            lineHeight: 1.35,
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background =
+                              "rgba(255,255,255,0.05)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "transparent";
+                          }}
+                        >
+                          {scenario}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Preset Scenarios side sheet — slides from the right, overlays
-          the legend. Click outside (backdrop) or the X closes without
-          making a selection. Clicking a scenario populates the input
-          and closes the sheet (user still must press RUN SCENARIO). */}
-      {presetSheetOpen && (
+      {/* DELETED: Preset Scenarios side sheet — replaced by the
+          inline popover above the Browse Preset button. */}
+      {false && presetSheetOpen && (
         <>
           <div
             onClick={() => setPresetSheetOpen(false)}
