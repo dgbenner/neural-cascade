@@ -889,19 +889,29 @@ export default function BrainViz() {
           side: THREE.BackSide,
           depthWrite: false,
         });
+        // Hide the eyeballs — the creator exported them as a separate
+        // mesh called "eyeball_m", so we can drop them without editing the
+        // OBJ. Walk the tree, remove anything matching that name.
         obj.traverse((child) => {
           if (child.isMesh) {
+            const n = (child.name || "").toLowerCase();
+            if (n.includes("eye")) {
+              child.visible = false;
+              return;
+            }
             child.material = headMat;
           }
         });
 
-        // Auto-fit the model to our coordinate space. The brain nodes span
-        // about 2.4 units in the y axis; we scale the model to match and
-        // then let the user tune with the magic numbers below.
-        const box = new THREE.Box3().setFromObject(obj);
+        // Measure only the head (now that eyes are hidden) so the auto-fit
+        // scale isn't skewed by stray eyeball geometry.
+        const box = new THREE.Box3();
+        obj.traverse((child) => {
+          if (child.isMesh && child.visible) box.expandByObject(child);
+        });
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
-        const targetHeight = 2.6;
+        const targetHeight = 7.8;
         const fitScale = targetHeight / size.y;
         obj.scale.setScalar(fitScale);
         obj.position.set(
