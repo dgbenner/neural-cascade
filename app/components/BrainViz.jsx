@@ -881,13 +881,24 @@ export default function BrainViz() {
         // Traverse all meshes in the loaded group and apply our material.
         // BackSide rendering means only the interior-facing polygons draw,
         // so the front of the skull is invisible and you see into the brain.
-        const headMat = new THREE.MeshBasicMaterial({
-          color: 0xaecbe8,
+        // Custom shader material with view-space depth-based opacity.
+        // The side of the head facing the camera fades to near-zero alpha
+        // so you can see into the brain; the side facing away renders at
+        // full target opacity as the structural reference shell.
+        const headMat = new THREE.ShaderMaterial({
+          uniforms: {
+            uColor: { value: new THREE.Color(0xaecbe8) },
+            uNearZ: { value: 2.0 },
+            uFarZ: { value: 4.4 },
+            uMinOp: { value: 0.01 },
+            uMaxOp: { value: 0.22 },
+          },
+          vertexShader: HEAD_VERTEX_SHADER,
+          fragmentShader: HEAD_FRAGMENT_SHADER,
           transparent: true,
-          opacity: 0.07,
-          wireframe: true,
-          side: THREE.BackSide,
           depthWrite: false,
+          wireframe: true,
+          side: THREE.DoubleSide,
         });
         // Hide the eyeballs — the creator exported them as a separate
         // mesh called "eyeball_m", so we can drop them without editing the
