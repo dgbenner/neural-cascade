@@ -605,6 +605,27 @@ export default function BrainViz() {
   const [scenarioText, setScenarioText] = useState("");
   const [callouts, setCallouts] = useState([]);
   const [showLegend, setShowLegend] = useState(true);
+  const [userToggledLegend, setUserToggledLegend] = useState(false);
+
+  // Auto-collapse the guide when the viewport is too narrow for both the
+  // brain scene and the 340px panel to coexist comfortably. Once the user
+  // manually toggles it (either direction), we stop auto-managing so we
+  // don't fight them on resize.
+  useEffect(() => {
+    if (userToggledLegend) return;
+    const check = () => {
+      if (typeof window === "undefined") return;
+      setShowLegend(window.innerWidth >= 980);
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, [userToggledLegend]);
+
+  const toggleLegend = useCallback((next) => {
+    setUserToggledLegend(true);
+    setShowLegend(next);
+  }, []);
   const [stepDuration, setStepDuration] = useState(3000);
   const [errorMsg, setErrorMsg] = useState("");
   const [groupOverride, setGroupOverride] = useState({});
@@ -1006,7 +1027,7 @@ export default function BrainViz() {
         </div>
         {!showLegend && (
           <button
-            onClick={() => setShowLegend(true)}
+            onClick={() => toggleLegend(true)}
             style={{
               background: "rgba(255,255,255,0.04)",
               border: "1px solid rgba(255,255,255,0.1)",
@@ -1025,9 +1046,9 @@ export default function BrainViz() {
         )}
       </div>
 
-      {/* Persistent white header row spanning the viewport + legend columns.
-          Left column: scenario label / playback controls / processing info.
-          Right column: Brain Region Guide label, centered over the legend. */}
+      {/* White header row — conditional, only appears once a scenario is
+          running or has run. Spans the viewport + legend columns. */}
+      {(scenarioText || isProcessing || activationSteps.length > 0) && (
       <div
         style={{
           display: "flex",
@@ -1264,33 +1285,8 @@ export default function BrainViz() {
           )}
         </div>
 
-        {showLegend && (
-          <div
-            style={{
-              width: "340px",
-              flexShrink: 0,
-              borderLeft: "1px solid rgba(10,10,18,0.08)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "10px 16px",
-              minHeight: "46px",
-            }}
-          >
-            <span
-              style={{
-                color: "#0a0a12",
-                fontSize: "12px",
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                fontWeight: 700,
-              }}
-            >
-              Brain Region Guide
-            </span>
-          </div>
-        )}
       </div>
+      )}
 
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         <div style={{ flex: 1, position: "relative" }}>
@@ -1741,12 +1737,25 @@ export default function BrainViz() {
             <div
               style={{
                 display: "flex",
-                justifyContent: "flex-end",
-                marginBottom: "12px",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "10px",
+                marginBottom: "16px",
               }}
             >
+              <span
+                style={{
+                  color: "#e0e4ea",
+                  fontSize: "12px",
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  fontWeight: 700,
+                }}
+              >
+                Brain Region Guide
+              </span>
               <button
-                onClick={() => setShowLegend(false)}
+                onClick={() => toggleLegend(false)}
                 aria-label="Close guide"
                 style={{
                   background: "transparent",
@@ -1762,9 +1771,10 @@ export default function BrainViz() {
                   display: "inline-flex",
                   alignItems: "center",
                   gap: "6px",
+                  flexShrink: 0,
                 }}
               >
-                Close Guide <span aria-hidden="true">✕</span>
+                Close <span aria-hidden="true">✕</span>
               </button>
             </div>
             {REGION_GROUPS.map((group) => {
