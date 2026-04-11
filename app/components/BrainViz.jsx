@@ -911,7 +911,7 @@ export default function BrainViz() {
         });
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
-        const targetHeight = 7.8;
+        const targetHeight = 5.2;
         const fitScale = targetHeight / size.y;
         obj.scale.setScalar(fitScale);
         obj.position.set(
