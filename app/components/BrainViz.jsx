@@ -884,7 +884,7 @@ export default function BrainViz() {
         const headMat = new THREE.MeshBasicMaterial({
           color: 0xaecbe8,
           transparent: true,
-          opacity: 0.1,
+          opacity: 0.07,
           wireframe: true,
           side: THREE.BackSide,
           depthWrite: false,
@@ -911,16 +911,19 @@ export default function BrainViz() {
         });
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
-        const targetHeight = 5.2;
+        const targetHeight = 4.68;
         const fitScale = targetHeight / size.y;
         obj.scale.setScalar(fitScale);
-        // Push the head up so the cranium sits around the brain clusters
-        // instead of the brain ending up at the base of the skull.
+        // Nudge the head so the cranium wraps the brain clusters cleanly.
+        // Y: negative lift drops the skull down around the brain.
+        // Z: negative shift moves the head backward so the occiput covers
+        // the rear edge of the brain nodes.
         const headYLift = -1.4;
+        const headZShift = -0.45;
         obj.position.set(
           -center.x * fitScale,
           -center.y * fitScale + headYLift,
-          -center.z * fitScale
+          -center.z * fitScale + headZShift
         );
 
         obj.renderOrder = 0;
