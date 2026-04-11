@@ -377,6 +377,76 @@ const HEAD_FRAGMENT_SHADER = `
 // Build LineSegments vertex pairs tracing the facial features — eye sockets,
 // brow ridge, nose bridge, mouth, and jawline. Coordinates are placed on the
 // front-facing surface of the head so they sit on the face plane.
+// Generate a dense cloud of points spread across a head-shaped surface.
+// Uses the same asymmetric slice geometry we originally used for the mesh
+// head, but samples random points across each triangle between adjacent
+// slices. Produces a fine-grained dot texture that reads as a head from
+// any angle, with density doing the work of shape definition.
+function buildHeadDotCloud(pointsPerTriangle = 24) {
+  const slices = [
+    { y: -1.55, rx: 0.22, rzF: 0.24, rzB: 0.24, nose: 0 },
+    { y: -1.30, rx: 0.32, rzF: 0.36, rzB: 0.36, nose: 0 },
+    { y: -1.05, rx: 0.55, rzF: 0.62, rzB: 0.60, nose: 0 },
+    { y: -0.85, rx: 0.78, rzF: 0.90, rzB: 0.80, nose: 0 },
+    { y: -0.65, rx: 0.90, rzF: 1.00, rzB: 0.90, nose: 0 },
+    { y: -0.45, rx: 1.00, rzF: 1.06, rzB: 0.98, nose: 0.4 },
+    { y: -0.25, rx: 1.06, rzF: 1.12, rzB: 1.04, nose: 1.0 },
+    { y: -0.05, rx: 1.10, rzF: 1.14, rzB: 1.10, nose: 0.7 },
+    { y: 0.15,  rx: 1.12, rzF: 1.14, rzB: 1.14, nose: 0 },
+    { y: 0.35,  rx: 1.14, rzF: 1.12, rzB: 1.18, nose: 0 },
+    { y: 0.55,  rx: 1.12, rzF: 1.02, rzB: 1.20, nose: 0 },
+    { y: 0.75,  rx: 1.05, rzF: 0.88, rzB: 1.16, nose: 0 },
+    { y: 0.95,  rx: 0.90, rzF: 0.72, rzB: 1.00, nose: 0 },
+    { y: 1.12,  rx: 0.65, rzF: 0.52, rzB: 0.75, nose: 0 },
+    { y: 1.25,  rx: 0.35, rzF: 0.28, rzB: 0.42, nose: 0 },
+  ];
+
+  const segments = 32;
+
+  // Compute a vertex for a given slice index and segment index.
+  const vertexAt = (sliceIdx, segIdx) => {
+    const { y, rx, rzF, rzB, nose } = slices[sliceIdx];
+    const theta = (segIdx / segments) * Math.PI * 2;
+    const cosT = Math.cos(theta);
+    const sinT = Math.sin(theta);
+    const rz = sinT >= 0 ? rzF : rzB;
+    let px = rx * cosT;
+    let pz = rz * sinT;
+    if (nose > 0 && sinT > 0.4) {
+      const front = Math.pow((sinT - 0.4) / 0.6, 2);
+      const narrow = Math.exp(-Math.pow(cosT * 3.5, 2));
+      pz += 0.22 * nose * front * narrow;
+    }
+    return [px, y, pz];
+  };
+
+  const positions = [];
+
+  // For each pair of adjacent slice rings, for each segment around the ring,
+  // scatter random points across the two triangles that make up that quad.
+  for (let s = 0; s < slices.length - 1; s++) {
+    for (let i = 0; i < segments; i++) {
+      const a = vertexAt(s, i);
+      const b = vertexAt(s, (i + 1) % segments);
+      const c = vertexAt(s + 1, i);
+      const d = vertexAt(s + 1, (i + 1) % segments);
+      for (let p = 0; p < pointsPerTriangle * 2; p++) {
+        // Random point inside the quad via bilinear interpolation
+        const u = Math.random();
+        const v = Math.random();
+        const x = (1 - u) * (1 - v) * a[0] + u * (1 - v) * b[0] + (1 - u) * v * c[0] + u * v * d[0];
+        const y = (1 - u) * (1 - v) * a[1] + u * (1 - v) * b[1] + (1 - u) * v * c[1] + u * v * d[1];
+        const z = (1 - u) * (1 - v) * a[2] + u * (1 - v) * b[2] + (1 - u) * v * c[2] + u * v * d[2];
+        positions.push(x, y, z);
+      }
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geo;
+}
+
 function buildFacialLandmarkPairs() {
   const pairs = [];
   const addPolyline = (curve) => {
@@ -779,6 +849,24 @@ export default function BrainViz() {
     // Uses an inverted opacity ramp (high at near, low at far) so the
     // landmarks are visible on whichever side of the head faces the camera
     // and fade away on the side turned away.
+    // Dense dot cloud covering the entire head surface. Uses a uniform low
+    // opacity so you can see front and back at the same time — density is
+    // what carries the shape, not brightness.
+    const headDotGeo = buildHeadDotCloud(18);
+    const headDotMat = new THREE.PointsMaterial({
+      color: 0xaecbe8,
+      size: 0.006,
+      transparent: true,
+      opacity: 0.22,
+      sizeAttenuation: true,
+      depthWrite: false,
+    });
+    const headDotCloud = new THREE.Points(headDotGeo, headDotMat);
+    headDotCloud.renderOrder = 0;
+    headDotCloud.position.set(0, -0.12, -0.65);
+    headDotCloud.scale.setScalar(1.344);
+    brainGroup.add(headDotCloud);
+
     const landmarkPairs = buildFacialLandmarkPairs();
     const landmarkGeo = new THREE.BufferGeometry().setFromPoints(landmarkPairs);
     const landmarkMat = new THREE.ShaderMaterial({
