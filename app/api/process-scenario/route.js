@@ -1,4 +1,21 @@
-import { isAuthed } from "../../lib/auth";
+import { cookies } from "next/headers";
+import { isAuthed, AUTH_COOKIE } from "../../lib/auth";
+
+// Fire-and-forget log to Google Sheets via an Apps Script web app.
+// Set GOOGLE_SHEET_WEBHOOK in env vars to the Apps Script deploy URL.
+async function logToSheet(data) {
+  const url = process.env.GOOGLE_SHEET_WEBHOOK;
+  if (!url) return;
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  } catch {
+    // Best-effort — don't let logging failures affect the user.
+  }
+}
 
 const MODIFIER_CONTEXT = {
   caffeine:
@@ -41,6 +58,16 @@ export async function POST(request) {
   if (!scenario || typeof scenario !== "string" || scenario.length > 500) {
     return Response.json({ error: "Invalid scenario" }, { status: 400 });
   }
+
+  // Log usage to Google Sheet (fire-and-forget, non-blocking).
+  const store = await cookies();
+  const usedPassword = store.get(AUTH_COOKIE)?.value || "unknown";
+  logToSheet({
+    timestamp: new Date().toISOString(),
+    password: usedPassword,
+    scenario,
+    modifier: modifier || "none",
+  });
 
   const modifierContext =
     modifier && MODIFIER_CONTEXT[modifier]

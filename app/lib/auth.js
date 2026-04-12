@@ -5,5 +5,7 @@ export const AUTH_COOKIE = "nc_auth";
 export async function isAuthed() {
   const store = await cookies();
   const token = store.get(AUTH_COOKIE)?.value;
-  return Boolean(token) && token === process.env.ACCESS_PASSWORD;
+  if (!token) return false;
+  const passwords = (process.env.ACCESS_PASSWORD || "").split(",").map((p) => p.trim());
+  return passwords.includes(token);
 }
