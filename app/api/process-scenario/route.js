@@ -59,15 +59,9 @@ export async function POST(request) {
     return Response.json({ error: "Invalid scenario" }, { status: 400 });
   }
 
-  // Log usage to Google Sheet (fire-and-forget, non-blocking).
   const store = await cookies();
   const usedPassword = store.get(AUTH_COOKIE)?.value || "unknown";
-  logToSheet({
-    timestamp: new Date().toISOString(),
-    password: usedPassword,
-    scenario,
-    modifier: modifier || "none",
-  });
+  const startTime = Date.now();
 
   const modifierContext =
     modifier && MODIFIER_CONTEXT[modifier]
@@ -120,6 +114,18 @@ No markdown, no backticks, just JSON.`;
 
     if (!upstream.ok) {
       const errText = await upstream.text();
+      logToSheet({
+        timestamp: new Date().toISOString(),
+        password: usedPassword,
+        scenario,
+        modifier: modifier || "none",
+        inputTokens: 0,
+        outputTokens: 0,
+        responseMs: Date.now() - startTime,
+        steps: 0,
+        regions: "",
+        status: `API error ${upstream.status}`,
+      });
       return Response.json(
         { error: `Anthropic API error: ${upstream.status}`, detail: errText },
         { status: 502 }
@@ -127,6 +133,10 @@ No markdown, no backticks, just JSON.`;
     }
 
     const data = await upstream.json();
+    const responseMs = Date.now() - startTime;
+    const inputTokens = data.usage?.input_tokens || 0;
+    const outputTokens = data.usage?.output_tokens || 0;
+
     const text = data.content
       .filter((c) => c.type === "text")
       .map((c) => c.text)
@@ -135,10 +145,39 @@ No markdown, no backticks, just JSON.`;
     const cleaned = text.replace(/```json|```/g, "").trim();
     try {
       const steps = JSON.parse(cleaned);
+      // Collect every unique region ID across all steps.
+      const allRegions = new Set();
+      steps.forEach((s) => {
+        if (s.regions) Object.keys(s.regions).forEach((r) => allRegions.add(r));
+      });
+      logToSheet({
+        timestamp: new Date().toISOString(),
+        password: usedPassword,
+        scenario,
+        modifier: modifier || "none",
+        inputTokens,
+        outputTokens,
+        responseMs,
+        steps: steps.length,
+        regions: [...allRegions].join(", "),
+        status: "ok",
+      });
       return Response.json({ steps });
     } catch (parseErr) {
       console.error("[process-scenario] JSON parse failed:", parseErr);
       console.error("[process-scenario] raw model output:", cleaned);
+      logToSheet({
+        timestamp: new Date().toISOString(),
+        password: usedPassword,
+        scenario,
+        modifier: modifier || "none",
+        inputTokens,
+        outputTokens,
+        responseMs,
+        steps: 0,
+        regions: "",
+        status: `parse error: ${String(parseErr).slice(0, 100)}`,
+      });
       return Response.json(
         {
           error: "Model returned invalid JSON",
@@ -150,6 +189,18 @@ No markdown, no backticks, just JSON.`;
     }
   } catch (err) {
     console.error("[process-scenario] unexpected error:", err);
+    logToSheet({
+      timestamp: new Date().toISOString(),
+      password: usedPassword,
+      scenario,
+      modifier: modifier || "none",
+      inputTokens: 0,
+      outputTokens: 0,
+      responseMs: Date.now() - startTime,
+      steps: 0,
+      regions: "",
+      status: `error: ${String(err).slice(0, 100)}`,
+    });
     return Response.json(
       { error: "Failed to process scenario", detail: String(err) },
       { status: 500 }
