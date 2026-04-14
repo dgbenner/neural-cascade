@@ -1222,8 +1222,8 @@ export default function BrainViz() {
             uColor: { value: new THREE.Color(0xaecbe8) },
             uFadeStart: { value: 0 },
             uFadeEnd: { value: 0 },
-            uBottomOp: { value: 0.002 },
-            uTopOp: { value: 0.045 },
+            uBottomOp: { value: 0.0024 },
+            uTopOp: { value: 0.054 },
           },
           vertexShader: HEAD_VFADE_VERTEX_SHADER,
           fragmentShader: HEAD_VFADE_FRAGMENT_SHADER,
@@ -1318,7 +1318,7 @@ export default function BrainViz() {
         const grid = new THREE.GridHelper(120, 40, gridGreen, gridGreen);
         grid.position.y = distantY;
         grid.material.transparent = true;
-        grid.material.opacity = 0.27;
+        grid.material.opacity = 0.324;
         envGroup.add(grid);
 
         // === Horizon line ===
@@ -1463,7 +1463,15 @@ export default function BrainViz() {
       // was leaking chroma onto the inactive spheres — zeroing it for
       // inactive regions lets the dark gray diffuse + lighting do the
       // work, so they read as dark gray with visible highlights.
-      const stepLoaded = Object.values(activations).some((v) => v > 0);
+      // Match the card threshold: any region the LLM returned below
+      // 0.3 is treated as inactive for the visualization too, so the
+      // brain and the cards stay in sync. The LLM often tags supporting
+      // regions at 0.1–0.2 which would otherwise light up without ever
+      // appearing on a card.
+      const ACTIVE_THRESHOLD = 0.3;
+      const stepLoaded = Object.values(activations).some(
+        (v) => v > ACTIVE_THRESHOLD
+      );
       const colorTargets = {};
       const emissiveTargets = {};
       const emissiveIntensityTargets = {};
@@ -1473,7 +1481,7 @@ export default function BrainViz() {
           colorTargets[r.id] = REGION_RESTING_COLORS[r.id];
           emissiveTargets[r.id] = REGION_ACTIVE_EMISSIVE[r.id];
           emissiveIntensityTargets[r.id] = 0.08;
-        } else if (a > 0) {
+        } else if (a > ACTIVE_THRESHOLD) {
           colorTargets[r.id] = REGION_ACTIVE_COLORS[r.id];
           emissiveTargets[r.id] = REGION_ACTIVE_EMISSIVE[r.id];
           emissiveIntensityTargets[r.id] = 0.1;
@@ -1519,8 +1527,9 @@ export default function BrainViz() {
         // Inactive dots (not in the current step) fade completely to
         // zero and hard-cull. When no scenario is loaded, everything
         // sits at full opacity (resting state).
+        const isActive = activation > ACTIVE_THRESHOLD;
         const meshTargetOpacity = stepLoaded
-          ? activation > 0
+          ? isActive
             ? 1 - w
             : 0
           : 1;
@@ -1581,7 +1590,7 @@ export default function BrainViz() {
           ? 0
           : !stepLoaded
           ? 0.09
-          : (activations[regionId] || 0) > 0
+          : (activations[regionId] || 0) > ACTIVE_THRESHOLD
           ? 0.15
           : 0;
         line.material.opacity =
