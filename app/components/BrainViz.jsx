@@ -864,6 +864,9 @@ export default function BrainViz() {
   // loop reads this every frame to give the highlighted region's nodes
   // an extra pulse on top of their normal activation level.
   const highlightedRegionIdRef = useRef(null);
+  // Outer glow sprite per node. Same order as nodeMeshesRef so the
+  // animation loop can iterate them in lockstep.
+  const nodeGlowsRef = useRef([]);
   // Per-region "highlight weight" 0..1 — lerps toward 1 when a region
   // is the current highlight, toward 0 when it's not. The animation
   // loop multiplies the highlight pulse amplitude by this weight, so
@@ -1045,8 +1048,8 @@ export default function BrainViz() {
     // Brain sits inside a sub-group offset back (-z) and up (+y) relative to
     // the head, so clusters sit higher in the skull and away from the face.
     const brainContentGroup = new THREE.Group();
-    brainContentGroup.position.set(0, 0.34, -0.4);
-    brainContentGroup.scale.setScalar(0.9);
+    brainContentGroup.position.set(0, 0.14, -0.4);
+    brainContentGroup.scale.setScalar(0.81);
     brainGroup.add(brainContentGroup);
 
     // Balanced lighting so every sphere shows a clear lit side, mid
@@ -1076,17 +1079,36 @@ export default function BrainViz() {
     const conns = generateConnections(allNodes);
     connectionsRef.current = conns;
 
+    // Shared soft radial-gradient texture for the outer-glow sprites.
+    // One canvas, one THREE.CanvasTexture, reused by every glow.
+    const glowTexture = (() => {
+      const size = 128;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      const gradient = ctx.createRadialGradient(
+        size / 2,
+        size / 2,
+        0,
+        size / 2,
+        size / 2,
+        size / 2
+      );
+      gradient.addColorStop(0, "rgba(255,255,255,0.32)");
+      gradient.addColorStop(0.3, "rgba(255,255,255,0.18)");
+      gradient.addColorStop(0.65, "rgba(255,255,255,0.05)");
+      gradient.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, size, size);
+      return new THREE.CanvasTexture(canvas);
+    })();
+
     const nodeMeshes = [];
+    const nodeGlows = [];
     allNodes.forEach((node) => {
       const region = BRAIN_REGIONS.find((r) => r.id === node.regionId);
-      // 4× more dots → bring segment count down to keep total triangle
-      // count manageable. Spheres are small enough that 16 still reads
-      // round and shaded.
       const geo = new THREE.SphereGeometry(node.baseSize, 16, 16);
-      // Standard material reacts to the scene lights and also supports an
-      // emissive channel we can drive for the activation "glow." Base
-      // color is darkened so inactive nodes sit back; emissive does the
-      // heavy lifting when a region lights up.
       const baseColor = new THREE.Color(region.color);
       const litBase = baseColor.clone().multiplyScalar(0.45);
       const mat = new THREE.MeshStandardMaterial({
@@ -1097,13 +1119,35 @@ export default function BrainViz() {
         metalness: 0.05,
         transparent: true,
         opacity: 1,
+        depthWrite: false,
       });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(node.x, node.y, node.z);
       brainContentGroup.add(mesh);
       nodeMeshes.push(mesh);
+
+      // Outer glow sprite: billboard quad additively blended, tinted to
+      // the region color. Starts invisible; animation loop fades it in
+      // for regions in the current step and expands it with the
+      // highlighted region's pulse.
+      const glowMat = new THREE.SpriteMaterial({
+        map: glowTexture,
+        color: baseColor.clone(),
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const glow = new THREE.Sprite(glowMat);
+      const glowBase = node.baseSize * 6;
+      glow.userData.baseScale = glowBase;
+      glow.scale.set(glowBase, glowBase, 1);
+      glow.position.set(node.x, node.y, node.z);
+      brainContentGroup.add(glow);
+      nodeGlows.push(glow);
     });
     nodeMeshesRef.current = nodeMeshes;
+    nodeGlowsRef.current = nodeGlows;
 
     const connectionLines = [];
     conns.forEach(([a, b, type]) => {
@@ -1440,6 +1484,7 @@ export default function BrainViz() {
         }
       });
 
+      const glows = nodeGlowsRef.current;
       meshes.forEach((mesh, i) => {
         const node = nodes[i];
         const activation = activations[node.regionId] || 0;
@@ -1467,6 +1512,26 @@ export default function BrainViz() {
         mesh.material.emissiveIntensity =
           mesh.material.emissiveIntensity +
           (intensityWithPulse - mesh.material.emissiveIntensity) * 0.05;
+        // When a step is running: active dots stay fully visible (their
+        // bright color carries them), EXCEPT the currently highlighted
+        // region — those dots fade out with the highlight weight so
+        // the glow orb can be the whole visual while it pulses.
+        // Inactive dots (not in the current step) fade completely to
+        // zero and hard-cull. When no scenario is loaded, everything
+        // sits at full opacity (resting state).
+        const meshTargetOpacity = stepLoaded
+          ? activation > 0
+            ? 1 - w
+            : 0
+          : 1;
+        mesh.material.opacity =
+          mesh.material.opacity +
+          (meshTargetOpacity - mesh.material.opacity) * 0.08;
+        // Hard-cull from rendering when the mesh is essentially gone —
+        // transparent meshes can still punch depth-buffer holes even
+        // with depthWrite off, so flip visibility entirely below a
+        // threshold. This kills the "black hole" artifact.
+        mesh.visible = mesh.material.opacity > 0.02;
 
         // Scale = baseline + slow normal pulse (always present when
         // active) + fast highlight pulse (amplitude weighted by w, so
@@ -1480,6 +1545,25 @@ export default function BrainViz() {
         mesh.scale.setScalar(
           baseSize + activeOffset + normalPulse + highlightPulse
         );
+
+        // Outer glow: ONLY shows for the region currently highlighted
+        // by the card cycle. Non-highlighted in-step regions lean on
+        // their bright color alone; the glow is reserved as the
+        // embellishment that rides with the pulse. Opacity is driven
+        // by the highlight weight (w) so it eases in/out smoothly as
+        // the card cycle advances.
+        const glow = glows[i];
+        if (glow) {
+          const targetOpacity = w * 0.45;
+          glow.material.opacity =
+            glow.material.opacity +
+            (targetOpacity - glow.material.opacity) * 0.08;
+          const glowBase = glow.userData.baseScale;
+          const pulse01 = (fastOsc + 1) * 0.5;
+          const highlightSwell = Math.pow(1 + pulse01 * 1.75, 2) * w;
+          const glowMul = 1 + highlightSwell;
+          glow.scale.set(glowBase * glowMul, glowBase * glowMul, 1);
+        }
       });
 
       connectionLinesRef.current.forEach(({ line, a, type }) => {
@@ -1490,14 +1574,20 @@ export default function BrainViz() {
         // tracks each region's resting / active / desaturated state.
         const targetColor = colorTargets[regionId];
         line.material.color.lerp(targetColor, 0.06);
-        const stateOpacity = !stepLoaded
+        // Hide the web entirely for the region currently highlighted
+        // by the card cycle — the pulsing orbs carry the visual alone.
+        const isHighlightedRegion = highlightedRegionId === regionId;
+        const stateOpacity = isHighlightedRegion
+          ? 0
+          : !stepLoaded
           ? 0.09
           : (activations[regionId] || 0) > 0
           ? 0.15
-          : 0.02;
+          : 0;
         line.material.opacity =
           line.material.opacity +
           (stateOpacity - line.material.opacity) * 0.06;
+        line.visible = line.material.opacity > 0.02;
       });
 
       rendererRef.current.render(sceneRef.current, cameraRef.current);
@@ -1717,24 +1807,6 @@ export default function BrainViz() {
       {/* Bottom-edge bloom: a small, concentrated red on the bottom-left and
           a broader, softer purple on the bottom-right. Pointer-events off
           so it never intercepts clicks on the controls above it. */}
-      <div
-        aria-hidden
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: "320px",
-          backgroundImage: `
-            radial-gradient(ellipse 62% 150% at 4% 108%, rgba(255,59,48,0.22) 0%, transparent 75%),
-            radial-gradient(ellipse 62% 135% at 90% 118%, rgba(155,43,255,0.144) 0%, transparent 70%)
-          `,
-          maskImage: "linear-gradient(to top, #000 0%, transparent 100%)",
-          WebkitMaskImage: "linear-gradient(to top, #000 0%, transparent 100%)",
-          pointerEvents: "none",
-          zIndex: 5,
-        }}
-      />
       <div
         style={{
           position: "absolute",
@@ -3737,6 +3809,22 @@ export default function BrainViz() {
           zIndex: 6,
         }}
       >
+        {/* Red + purple bloom — contained inside the bottom bar so it
+            can't leak above the top border. Gradients are absolutely
+            positioned to fill the bar, then masked upward to fade. */}
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: `
+              radial-gradient(ellipse 62% 140% at 4% 118%, rgba(255,59,48,0.22) 0%, transparent 75%),
+              radial-gradient(ellipse 62% 135% at 90% 118%, rgba(155,43,255,0.144) 0%, transparent 70%)
+            `,
+            pointerEvents: "none",
+            zIndex: 0,
+          }}
+        />
 
         {/* Primary scenario input: centered 80%, textarea + reversed-out
             button attached on the right, preset trigger floating below. */}
@@ -3782,7 +3870,10 @@ export default function BrainViz() {
                   `,
                   backdropFilter: "blur(30px) saturate(1.2)",
                   WebkitBackdropFilter: "blur(30px) saturate(1.2)",
-                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+                  borderLeft: "1px solid rgba(255, 255, 255, 0.08)",
+                  borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                  borderRight: "none",
                   borderRadius: "14px 0 0 14px",
                   overflow: "hidden",
                   boxShadow:
@@ -3825,7 +3916,7 @@ export default function BrainViz() {
                   zIndex: 2,
                   marginLeft: "-1px",
                   height: "38px",
-                  minWidth: "164px",
+                  minWidth: "186px",
                   background: isProcessing || !inputText.trim()
                     ? "rgba(255,255,255,0.3)"
                     : "#ffffff",
