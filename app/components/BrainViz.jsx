@@ -853,6 +853,36 @@ const EXAMPLE_SCENARIOS = [
   "I taste my favorite childhood meal again",
   "I lose my balance in a difficult yoga pose",
   "I'm writing a letter to someone I miss",
+  "I'm parallel parking in a tight spot while someone watches",
+  "I wake up at 3am and don't know where I am for a moment",
+  "I'm translating a sentence from Spanish to English in my head",
+  "A dog I don't know runs toward me barking aggressively",
+  "I'm assembling IKEA furniture without the instructions",
+  "I smell smoke and can't tell where it's coming from",
+  "I'm listening to two people argue and trying to stay neutral",
+  "I step off a curb and realize a bus is closer than I thought",
+  "I'm drawing a portrait of someone sitting across from me",
+  "I suddenly remember I left the oven on at home",
+  "I'm counting back change for a customer in my head",
+  "I hear a song in a language I don't understand but feel the emotion",
+  "I'm rock climbing and my foot slips on the hold",
+  "I watch a magic trick and try to figure out how it was done",
+  "I'm eating dinner and bite down on something that shouldn't be there",
+  "I recognize someone's face but cannot place their name",
+  "I'm conducting an orchestra through a tempo change",
+  "I feel turbulence on a plane and grip the armrest",
+  "I'm proofreading a document and catch a subtle error",
+  "I walk into a room and completely forget why I went in there",
+  "I'm telling a joke and gauging whether the audience is with me",
+  "I catch a glass falling off a table before it hits the ground",
+  "I'm swimming underwater and realize I need air soon",
+  "I hear a baby crying in a store and instinctively look around",
+  "I'm debugging code and suddenly see the problem",
+  "I step outside into freezing cold air after being in a warm building",
+  "I'm improvising a guitar solo over a chord progression",
+  "I witness a stranger collapse on the sidewalk",
+  "I'm lying in bed replaying an awkward thing I said earlier today",
+  "I take the first bite of food after fasting all day",
 ];
 
 export default function BrainViz() {
@@ -946,6 +976,14 @@ export default function BrainViz() {
   const activeModifier =
     MODIFIERS.find((m) => m.id === activeModifierId) || null;
   const [presetSheetOpen, setPresetSheetOpen] = useState(false);
+  // A fresh random sample of 20 presets each time the sheet opens, so
+  // the full list rotates out over multiple visits.
+  const [visiblePresets, setVisiblePresets] = useState([]);
+  useEffect(() => {
+    if (!presetSheetOpen) return;
+    const shuffled = [...EXAMPLE_SCENARIOS].sort(() => Math.random() - 0.5);
+    setVisiblePresets(shuffled.slice(0, 20));
+  }, [presetSheetOpen]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsAnchorRef = useRef(null);
   const presetAnchorRef = useRef(null);
@@ -1630,12 +1668,16 @@ export default function BrainViz() {
     isDragging.current = false;
   }, []);
 
-  const processScenario = async () => {
-    if (!inputText.trim() || isProcessing) return;
+  const processScenario = async (overrideText) => {
+    const textToRun =
+      typeof overrideText === "string" && overrideText.trim()
+        ? overrideText.trim()
+        : inputText.trim();
+    if (!textToRun || isProcessing) return;
 
     setIsProcessing(true);
     setErrorMsg("");
-    setScenarioText(inputText.trim());
+    setScenarioText(textToRun);
     setActivations(baselineActivationsFor(activeModifier));
     setActivationSteps([]);
     setCurrentStep(-1);
@@ -1648,7 +1690,7 @@ export default function BrainViz() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          scenario: inputText.trim(),
+          scenario: textToRun,
           modifier: activeModifier ? activeModifier.id : null,
         }),
       });
@@ -1933,7 +1975,7 @@ export default function BrainViz() {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "16px",
+                gap: "4px",
               }}
             >
               <button
@@ -1946,13 +1988,19 @@ export default function BrainViz() {
                 disabled={currentStep <= 0}
                 aria-label="Previous step"
                 style={{
-                  background: "transparent",
-                  border: "1px solid rgba(255,255,255,0.18)",
+                  background:
+                    currentStep <= 0 ? "transparent" : "#ffffff",
+                  border:
+                    currentStep <= 0
+                      ? "1px solid rgba(255,255,255,0.18)"
+                      : "none",
                   color:
-                    currentStep <= 0 ? "rgba(255,255,255,0.2)" : "#e8ecf2",
-                  width: "36px",
+                    currentStep <= 0
+                      ? "rgba(255,255,255,0.2)"
+                      : "#0a0a12",
+                  width: "144px",
                   height: "36px",
-                  borderRadius: "50%",
+                  borderRadius: "18px",
                   cursor: currentStep <= 0 ? "default" : "pointer",
                   fontFamily: fontStack,
                   fontSize: "19px",
@@ -1977,33 +2025,30 @@ export default function BrainViz() {
                   whiteSpace: "nowrap",
                   userSelect: "none",
                   WebkitUserSelect: "none",
+                  minWidth: "135px",
+                  textAlign: "center",
                 }}
               >
                 Step {currentStep + 1} of {activationSteps.length}
               </div>
               <button
                 onClick={() => {
-                  if (currentStep < activationSteps.length - 1) {
-                    if (isPlaying) setIsPlaying(false);
-                    goToStep(currentStep + 1);
-                  }
+                  if (isPlaying) setIsPlaying(false);
+                  const next =
+                    currentStep >= activationSteps.length - 1
+                      ? 0
+                      : currentStep + 1;
+                  goToStep(next);
                 }}
-                disabled={currentStep >= activationSteps.length - 1}
                 aria-label="Next step"
+                className="nc-next-step"
                 style={{
-                  background: "transparent",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  color:
-                    currentStep >= activationSteps.length - 1
-                      ? "rgba(255,255,255,0.2)"
-                      : "#e8ecf2",
-                  width: "36px",
+                  border: "none",
+                  color: "#0a0a12",
+                  width: "144px",
                   height: "36px",
-                  borderRadius: "50%",
-                  cursor:
-                    currentStep >= activationSteps.length - 1
-                      ? "default"
-                      : "pointer",
+                  borderRadius: "18px",
+                  cursor: "pointer",
                   fontFamily: fontStack,
                   fontSize: "19px",
                   fontWeight: 600,
@@ -2011,8 +2056,22 @@ export default function BrainViz() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  transition: "all 0.2s ease",
                   padding: 0,
+                  backgroundImage: `
+                    radial-gradient(ellipse 25% 180% at 4% 115%, rgba(255,106,61,0.35) 0%, transparent 55%),
+                    radial-gradient(ellipse 20% 190% at 11% 100%, rgba(255,159,67,0.4) 0%, transparent 55%),
+                    radial-gradient(ellipse 28% 170% at 19% 112%, rgba(255,184,77,0.4) 0%, transparent 55%),
+                    radial-gradient(ellipse 22% 180% at 27% 95%, rgba(0,216,138,0.22) 0%, transparent 55%),
+                    radial-gradient(ellipse 25% 175% at 36% 108%, rgba(46,156,255,0.21) 0%, transparent 55%),
+                    radial-gradient(ellipse 22% 185% at 44% 96%, rgba(15,95,214,0.2) 0%, transparent 55%),
+                    radial-gradient(ellipse 25% 180% at 53% 112%, rgba(216,100,255,0.25) 0%, transparent 55%),
+                    radial-gradient(ellipse 22% 170% at 62% 96%, rgba(255,159,67,0.4) 0%, transparent 55%),
+                    radial-gradient(ellipse 25% 180% at 71% 112%, rgba(0,216,138,0.21) 0%, transparent 55%),
+                    radial-gradient(ellipse 22% 185% at 80% 95%, rgba(46,156,255,0.21) 0%, transparent 55%),
+                    radial-gradient(ellipse 25% 175% at 89% 108%, rgba(155,43,255,0.25) 0%, transparent 55%),
+                    radial-gradient(ellipse 25% 175% at 97% 96%, rgba(255,184,77,0.4) 0%, transparent 55%),
+                    linear-gradient(#ffffff, #ffffff)
+                  `,
                 }}
               >
                 ❯
@@ -2933,7 +2992,7 @@ export default function BrainViz() {
                     fontWeight: 500,
                   }}
                 >
-                  approx. 15 seconds
+                  approximately 15 seconds
                 </span>
               </div>
               <div
@@ -2948,7 +3007,7 @@ export default function BrainViz() {
                 }}
               >
                 <span style={{ color: "#8a95a8", fontWeight: 500 }}>
-                  Processing scenario:
+                  Scenario:
                 </span>{" "}
                 <span style={{ color: "#0a0a12", fontWeight: 600 }}>
                   {summarizeScenario(scenarioText) || "—"}
@@ -3328,14 +3387,15 @@ export default function BrainViz() {
                       }}
                       style={{
                         position: "relative",
-                        background: isHighlighted
-                          ? "rgba(20,22,32,0.96)"
-                          : "rgba(10,10,18,0.92)",
-                        border: `1px solid ${
-                          isHighlighted ? region.color : region.color + "55"
-                        }`,
+                        background: "rgba(10,10,18,0.94)",
+                        backgroundImage: isHighlighted
+                          ? `linear-gradient(${region.color}22, ${region.color}22)`
+                          : "none",
+                        border: isHighlighted
+                          ? `2px solid ${region.color}`
+                          : `1px solid ${region.color}55`,
                         boxShadow: isHighlighted
-                          ? `0 0 18px ${region.color}55, inset 0 0 0 1px ${region.color}aa`
+                          ? `0 0 18px ${region.color}55`
                           : "none",
                         borderRadius: "6px",
                         padding: "10px 14px 10px 14px",
@@ -3875,6 +3935,11 @@ export default function BrainViz() {
                       rgba(255, 255, 255, 0.09) 0%,
                       rgba(255, 255, 255, 0.02) 25%,
                       transparent 50%
+                    ),
+                    linear-gradient(340deg,
+                      rgba(255, 255, 255, 0.063) 0%,
+                      rgba(255, 255, 255, 0.014) 25%,
+                      transparent 50%
                     )
                   `,
                   backdropFilter: "blur(30px) saturate(1.2)",
@@ -3903,10 +3968,10 @@ export default function BrainViz() {
                   style={{
                     display: "block",
                     width: "100%",
-                    height: "38px",
+                    height: "36px",
                     background: "transparent",
                     border: "none",
-                    padding: "10px 44px 10px 18px",
+                    padding: "8px 44px 8px 18px",
                     color: "#ffffff",
                     fontFamily: fontStack,
                     fontSize: "15px",
@@ -4213,7 +4278,7 @@ export default function BrainViz() {
                             lineHeight: 1.35,
                           }}
                         >
-                          Pick one to load it into the input.
+                          Pick a scenario to run.
                         </div>
                       </div>
                       <button
@@ -4246,12 +4311,13 @@ export default function BrainViz() {
                         flex: 1,
                       }}
                     >
-                      {EXAMPLE_SCENARIOS.map((scenario) => (
+                      {visiblePresets.map((scenario) => (
                         <button
                           key={scenario}
                           onClick={() => {
                             setInputText(scenario);
                             setPresetSheetOpen(false);
+                            processScenario(scenario);
                           }}
                           style={{
                             display: "block",

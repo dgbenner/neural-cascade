@@ -83,7 +83,7 @@ a {
   background-size: 200% 100%;
   background-repeat: no-repeat;
   background-position: 0% 100%;
-  animation: nc-wordmark-flow 22s ease-in-out infinite alternate;
+  animation: nc-wordmark-flow 16s ease-in-out infinite alternate;
 }
 
 @keyframes nc-wordmark-flow {
@@ -105,8 +105,8 @@ a {
   background-repeat: no-repeat;
   background-position: 0% 100%;
   animation:
-    nc-wordmark-flow 22s ease-in-out infinite alternate,
-    nc-wordmark-bloom-fade 22s ease-in-out infinite alternate;
+    nc-wordmark-flow 16s ease-in-out infinite alternate,
+    nc-wordmark-bloom-fade 16s ease-in-out infinite alternate;
   pointer-events: none;
 }
 
@@ -114,6 +114,16 @@ a {
   0%   { opacity: 0; }
   50%  { opacity: 1; }
   100% { opacity: 0; }
+}
+
+/* Next-step button background — same slow color drift as the Neural
+   Cascade wordmark, but applied to the whole fill (not background-clip:
+   text). White base with soft region-color blooms that ebb left→right. */
+.nc-next-step {
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  background-position: 0% 100%;
+  animation: nc-wordmark-flow 16s ease-in-out infinite alternate;
 }
 
 /* Three-dot brain-color spinner. Each dot orbits the center on its own
@@ -173,6 +183,28 @@ a {
   opacity: 0;
   transform: translateY(-18px);
   animation: nc-region-card-in 570ms cubic-bezier(0.16, 0.84, 0.32, 1) forwards;
+}
+
+/* Very slight outer glow pulse on the highlighted region card. Uses a
+   CSS variable for color so the same keyframes work for every region.
+   Runs on top of the entrance animation once the card has landed. */
+.nc-region-card-pulse {
+  animation:
+    nc-region-card-in 570ms cubic-bezier(0.16, 0.84, 0.32, 1) forwards,
+    nc-region-card-glow 3.3s ease-in-out infinite 570ms;
+}
+
+@keyframes nc-region-card-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 14px 0 var(--card-glow-color, rgba(255, 255, 255, 0.25)),
+      inset 0 0 0 1px var(--card-glow-color, rgba(255, 255, 255, 0.25));
+  }
+  50% {
+    box-shadow:
+      0 0 26px 3px var(--card-glow-color, rgba(255, 255, 255, 0.45)),
+      inset 0 0 0 1px var(--card-glow-color, rgba(255, 255, 255, 0.6));
+  }
 }
 
 @keyframes nc-region-card-in {
