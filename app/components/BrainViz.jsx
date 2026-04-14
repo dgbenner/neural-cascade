@@ -1702,7 +1702,8 @@ export default function BrainViz() {
     <div
       style={{
         width: "100%",
-        height: "100vh",
+        height: "100dvh",
+        minHeight: "100vh",
         background: "#0a0a12",
         color: "#e8ecf2",
         fontFamily: fontStack,
