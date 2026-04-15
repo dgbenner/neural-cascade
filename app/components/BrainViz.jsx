@@ -2918,8 +2918,9 @@ export default function BrainViz() {
           {/* Step transition iris — three layered expanding circles
               with staggered delays. Each pulls a random region color
               from the brain palette so every transition has a fresh
-              tint. Re-mounted on every step change via flashKey. */}
-          {flashKey > 0 && (
+              tint. Re-mounted on every step change via flashKey.
+              Disabled for now — revisit with a subtler approach. */}
+          {false && flashKey > 0 && (
             <>
               <div
                 key={`${flashKey}-a`}
