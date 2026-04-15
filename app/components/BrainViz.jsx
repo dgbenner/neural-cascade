@@ -1715,6 +1715,8 @@ export default function BrainViz() {
             intensity: data.intensity,
           }))
         );
+        // Auto-play the walkthrough the moment the scenario lands.
+        setIsPlaying(true);
       }
     } catch (err) {
       setErrorMsg("Network error");
@@ -2216,7 +2218,7 @@ export default function BrainViz() {
                       }}
                     />
                   )}
-                  {isPlaying ? "Pause Walkthrough" : "Play Walkthrough"}
+                  {isPlaying ? "Stop Walkthrough" : "Play Walkthrough"}
                 </button>
                 <div
                   ref={settingsAnchorRef}
@@ -2448,7 +2450,7 @@ export default function BrainViz() {
                     }}
                   />
                 )}
-                {isPlaying ? "Pause Walkthrough" : "Play Walkthrough"}
+                {isPlaying ? "Stop Walkthrough" : "Play Walkthrough"}
               </button>
 
               <div ref={settingsAnchorRef} style={{ position: "relative" }}>
@@ -2736,7 +2738,7 @@ export default function BrainViz() {
                   }}
                 />
               )}
-              {isPlaying ? "Pause Walkthrough" : "Play Walkthrough"}
+              {isPlaying ? "Stop Walkthrough" : "Play Walkthrough"}
             </button>
 
             {/* Gear icon — playback settings popover. */}
