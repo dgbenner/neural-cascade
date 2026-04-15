@@ -126,6 +126,94 @@ a {
   animation: nc-wordmark-flow 16s ease-in-out infinite alternate;
 }
 
+/* Popover that rises up from the button below — used by Browse Preset
+   Scenarios + Altered States. Scales from 92% with a slight upward
+   translate while fading in. ~220ms ease-out so it feels alive.
+   Includes translateX(-50%) so it works on horizontally-centered
+   popovers without colliding with their inline transform. */
+.nc-popover-up {
+  transform-origin: bottom center;
+  animation: nc-popover-up-in 580ms cubic-bezier(0.16, 0.84, 0.32, 1) forwards;
+}
+
+@keyframes nc-popover-up-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px) scale(0.92);
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+/* Popover that drops down from the button above — used by the gear
+   settings panel which is right-anchored, so no horizontal centering. */
+.nc-popover-down {
+  transform-origin: top right;
+  animation: nc-popover-down-in 580ms cubic-bezier(0.16, 0.84, 0.32, 1) forwards;
+}
+
+@keyframes nc-popover-down-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.92);
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Top-center toast (processing scenario). Same down-from-top motion
+   as nc-popover-down, but preserves the translateX(-50%) horizontal
+   centering its inline transform was using. */
+.nc-toast-down {
+  transform-origin: top center;
+  animation: nc-toast-down-in 640ms cubic-bezier(0.16, 0.84, 0.32, 1) forwards;
+}
+
+@keyframes nc-toast-down-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-14px) scale(0.94);
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+/* Right-edge panel (Brain Region Guide). Slides in from the right
+   with a fade. Slightly slower than the popovers since it's a bigger
+   panel and the motion arc is longer. */
+.nc-panel-right {
+  animation: nc-panel-right-in 690ms cubic-bezier(0.16, 0.84, 0.32, 1) forwards;
+}
+
+@keyframes nc-panel-right-in {
+  0% {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 /* Three-dot brain-color spinner. Each dot orbits the center on its own
    stop-and-go animation. The orbit pattern is rotate(angle) → translate
    outward → counter-rotate(-angle), which lets each dot travel the
@@ -176,13 +264,14 @@ a {
   100%      { transform: rotate(600deg) translate(0, -13px) rotate(-600deg); }
 }
 
-/* Region card entrance — drops in from above with a fade. Each card
-   gets its own animation-delay so they stack in sequence as if being
-   dealt onto the row. The total stagger budget is ~700ms. */
+/* Region card entrance — every card starts at the same time, all
+   stacked at the top of the column. Each card has a unique starting
+   offset (set inline as --stack-start) and a unique duration (set
+   inline as --stack-duration) so that the bottom-most card travels
+   the furthest at the highest speed and they all settle in sequence. */
 .nc-region-card {
   opacity: 0;
-  transform: translateY(-18px);
-  animation: nc-region-card-in 570ms cubic-bezier(0.16, 0.84, 0.32, 1) forwards;
+  animation: nc-region-card-in var(--stack-duration, 1500ms) ease-out forwards;
 }
 
 /* Very slight outer glow pulse on the highlighted region card. Uses a
@@ -210,7 +299,10 @@ a {
 @keyframes nc-region-card-in {
   0% {
     opacity: 0;
-    transform: translateY(-18px);
+    transform: translateY(var(--stack-start, -18px));
+  }
+  35% {
+    opacity: 1;
   }
   100% {
     opacity: 1;
@@ -218,34 +310,50 @@ a {
   }
 }
 
-/* Flash bang on every step transition (manual or autoplay). A bright
-   white wash blooms in and out over ~75ms with ease-in-out. */
+/* Step transition iris — a soft white circle bursts open from the
+   center of the canvas and expands to fully cover the screen, then
+   fades away. Reads as a quick reveal rather than a flat flash. */
+/* Step transition iris — multiple expanding purple circles. Built as
+   actual round divs (border-radius: 50%) that scale up, so the blur
+   actually softens the perimeter (clip-path would leave a hard edge
+   regardless of filter). Three staggered layers overlap into rings. */
 .nc-flashbang {
   position: absolute;
-  top: -10%;
-  left: -10%;
-  right: -10%;
-  bottom: -10%;
-  border-radius: 120px;
-  background: rgba(255, 255, 255, 0.5);
-  filter: blur(40px);
+  left: 50%;
+  top: 50%;
+  width: 200px;
+  height: 200px;
+  margin-left: -100px;
+  margin-top: -100px;
+  border-radius: 50%;
+  background: rgba(155, 43, 255, 0.275);
+  filter: blur(48px);
   pointer-events: none;
   z-index: 25;
   opacity: 0;
-  animation: nc-flashbang 75ms ease-in-out forwards;
+  transform: scale(0);
+  animation: nc-flashbang 280ms ease-out forwards;
+}
+
+.nc-flashbang-2 {
+  animation-delay: 60ms;
+}
+
+.nc-flashbang-3 {
+  animation-delay: 120ms;
 }
 
 @keyframes nc-flashbang {
   0% {
     opacity: 0;
-    transform: scale(0.92);
+    transform: scale(0);
   }
-  45% {
-    opacity: 0.45;
-    transform: scale(1.02);
+  40% {
+    opacity: 0.55;
+    transform: scale(8);
   }
   100% {
     opacity: 0;
-    transform: scale(1.06);
+    transform: scale(20);
   }
 }

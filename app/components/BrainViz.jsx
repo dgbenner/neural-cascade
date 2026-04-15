@@ -1787,10 +1787,15 @@ export default function BrainViz() {
   // Flash bang on every step transition. Increment a counter on step
   // change and use it as the React key for the overlay so the CSS
   // animation re-fires every time, even if the previous flash is still
-  // running.
+  // running. Pick three random region colors per trigger so each
+  // transition's iris uses a fresh palette.
   const [flashKey, setFlashKey] = useState(0);
+  const [flashColors, setFlashColors] = useState([]);
   useEffect(() => {
     if (currentStep < 0) return;
+    const pick = () =>
+      BRAIN_REGIONS[Math.floor(Math.random() * BRAIN_REGIONS.length)].color;
+    setFlashColors([pick(), pick(), pick()]);
     setFlashKey((k) => k + 1);
   }, [currentStep]);
 
@@ -1802,7 +1807,8 @@ export default function BrainViz() {
     setCardsEntered(false);
     if (currentStep < 0 || activationSteps.length === 0) return;
     const cardCount = activeCallouts.length || 1;
-    const totalStagger = 570 + (cardCount - 1) * 165;
+    // Last card finishes last because its duration is longest.
+    const totalStagger = 120 + (cardCount - 1) * 50;
     const t = setTimeout(() => setCardsEntered(true), totalStagger + 60);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2166,7 +2172,7 @@ export default function BrainViz() {
                     ✓
                   </span>
                 )}
-                Open Brain Region Guide
+                Open Brain Atlas
               </button>
             )}
           </div>
@@ -2772,6 +2778,7 @@ export default function BrainViz() {
               </button>
               {settingsOpen && (
                 <div
+                  className="nc-popover-down"
                   style={{
                     position: "absolute",
                     top: "calc(100% + 8px)",
@@ -2908,15 +2915,31 @@ export default function BrainViz() {
             onTouchMove={handlePointerMove}
             onTouchEnd={handlePointerUp}
           />
-          {/* Step transition flash. Re-mounted on every step change via
-              the flashKey so the CSS animation re-fires every time, even
-              if the previous flash was still in flight. */}
+          {/* Step transition iris — three layered expanding circles
+              with staggered delays. Each pulls a random region color
+              from the brain palette so every transition has a fresh
+              tint. Re-mounted on every step change via flashKey. */}
           {flashKey > 0 && (
-            <div
-              key={flashKey}
-              className="nc-flashbang"
-              aria-hidden="true"
-            />
+            <>
+              <div
+                key={`${flashKey}-a`}
+                className="nc-flashbang"
+                aria-hidden="true"
+                style={{ background: `${flashColors[0] || "#9B2BFF"}46` }}
+              />
+              <div
+                key={`${flashKey}-b`}
+                className="nc-flashbang nc-flashbang-2"
+                aria-hidden="true"
+                style={{ background: `${flashColors[1] || "#9B2BFF"}46` }}
+              />
+              <div
+                key={`${flashKey}-c`}
+                className="nc-flashbang nc-flashbang-3"
+                aria-hidden="true"
+                style={{ background: `${flashColors[2] || "#9B2BFF"}46` }}
+              />
+            </>
           )}
 
           {/* Top toast — appears only while a scenario is being processed.
@@ -2925,11 +2948,11 @@ export default function BrainViz() {
               the moment activationSteps arrive. */}
           {(scenarioText || isProcessing) && isProcessing && (
             <div
+              className="nc-toast-down"
               style={{
                 position: "absolute",
                 top: "16px",
                 left: "50%",
-                transform: "translateX(-50%)",
                 background: "#ffffff",
                 color: "#0a0a12",
                 padding: "16px 24px 18px",
@@ -3393,9 +3416,9 @@ export default function BrainViz() {
                         backgroundImage: isHighlighted
                           ? `linear-gradient(${region.color}22, ${region.color}22)`
                           : "none",
-                        border: isHighlighted
-                          ? `2px solid ${region.color}`
-                          : `1px solid ${region.color}55`,
+                        border: `2px solid ${
+                          isHighlighted ? region.color : region.color + "33"
+                        }`,
                         boxShadow: isHighlighted
                           ? `0 0 18px ${region.color}55`
                           : "none",
@@ -3405,7 +3428,13 @@ export default function BrainViz() {
                         backdropFilter: "blur(8px)",
                         flexShrink: 0,
                         cursor: "pointer",
-                        animationDelay: `${i * 165}ms`,
+                        animationDelay: "0ms",
+                        "--stack-start": `${-i * 80}px`,
+                        "--stack-duration": `${120 + i * 50}ms`,
+                        // Higher z-index for cards earlier in the list so
+                        // when they're all stacked at the top, card 0 sits
+                        // on top and cards underneath slide out from below.
+                        zIndex: 100 - i,
                         transition:
                           "background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease",
                       }}
@@ -3492,6 +3521,7 @@ export default function BrainViz() {
 
         {showLegend && (
           <div
+            className="nc-panel-right"
             style={{
               position: "absolute",
               top: 0,
@@ -3507,54 +3537,85 @@ export default function BrainViz() {
               zIndex: 20,
             }}
           >
-            {/* Pinned header — stays put while the groups list scrolls.
-                Tall + opaque enough to fully cover the "Open Brain Region
-                Guide" button in the top header bar that sits behind it. */}
+            {/* Pinned header — Close button on its own top row, then
+                the Brain Atlas title + subtitle centered below it. Stays
+                put while the groups list scrolls. */}
             <div
               style={{
                 display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "10px",
-                padding: "32px 16px 24px",
+                flexDirection: "column",
+                padding: "16px 16px 20px",
                 borderBottom: "1px solid rgba(255,255,255,0.08)",
                 background: "rgba(0,0,0,0.85)",
                 flexShrink: 0,
               }}
             >
-              <span
+              <div
                 style={{
-                  color: "#e0e4ea",
-                  fontSize: "12px",
-                  letterSpacing: "0.14em",
-                  textTransform: "uppercase",
-                  fontWeight: 700,
+                  display: "flex",
+                  justifyContent: "flex-end",
                 }}
               >
-                Brain Region Guide
-              </span>
-              <button
-                onClick={() => toggleLegend(false)}
-                aria-label="Close guide"
+                <button
+                  onClick={() => toggleLegend(false)}
+                  aria-label="Close guide"
+                  style={{
+                    background: "transparent",
+                    border: "1px solid rgba(255,255,255,0.14)",
+                    color: "#c0c8d8",
+                    padding: "4px 10px",
+                    borderRadius: "12px",
+                    cursor: "pointer",
+                    fontFamily: fontStack,
+                    fontSize: "11px",
+                    fontWeight: 500,
+                    letterSpacing: "0.04em",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    userSelect: "none",
+                    WebkitUserSelect: "none",
+                  }}
+                >
+                  Close <span aria-hidden="true">✕</span>
+                </button>
+              </div>
+              <div
                 style={{
-                  background: "transparent",
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  color: "#c0c8d8",
-                  padding: "4px 10px",
-                  borderRadius: "12px",
-                  cursor: "pointer",
-                  fontFamily: fontStack,
-                  fontSize: "11px",
-                  fontWeight: 500,
-                  letterSpacing: "0.04em",
-                  display: "inline-flex",
+                  display: "flex",
+                  flexDirection: "column",
                   alignItems: "center",
-                  gap: "6px",
-                  flexShrink: 0,
+                  gap: "4px",
+                  marginTop: "12px",
+                  userSelect: "none",
+                  WebkitUserSelect: "none",
                 }}
               >
-                Close <span aria-hidden="true">✕</span>
-              </button>
+                <span
+                  style={{
+                    fontFamily: displayFont,
+                    fontSize: "25px",
+                    color: "#ffffff",
+                    lineHeight: 1,
+                    letterSpacing: "-0.01em",
+                  }}
+                >
+                  Brain Atlas
+                </span>
+                <span
+                  style={{
+                    color: "#e8ecf2",
+                    fontSize: "9.5px",
+                    letterSpacing: "0.36em",
+                    textTransform: "uppercase",
+                    fontWeight: 500,
+                    lineHeight: 1,
+                    marginTop: "2px",
+                  }}
+                >
+                  Regions and their roles
+                </span>
+              </div>
             </div>
             {/* Scrollable groups list. */}
             <div
@@ -4082,11 +4143,11 @@ export default function BrainViz() {
                 </button>
                 {statesPickerOpen && (
                   <div
+                    className="nc-popover-up"
                     style={{
                       position: "absolute",
                       bottom: "calc(100% + 8px)",
                       left: "50%",
-                      transform: "translateX(-50%)",
                       background: "rgba(14,16,24,0.98)",
                       border: "1px solid rgba(255,255,255,0.12)",
                       borderRadius: "10px",
@@ -4212,10 +4273,34 @@ export default function BrainViz() {
               <div ref={presetAnchorRef} style={{ position: "relative" }}>
                 <button
                   onClick={() => setPresetSheetOpen((v) => !v)}
+                  onMouseEnter={(e) => {
+                    if (activationSteps.length === 0 && !isProcessing) {
+                      e.currentTarget.style.background = "#e8ecf2";
+                    } else {
+                      e.currentTarget.style.background =
+                        "rgba(255,255,255,0.06)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (activationSteps.length === 0 && !isProcessing) {
+                      e.currentTarget.style.background = "#ffffff";
+                    } else {
+                      e.currentTarget.style.background = "transparent";
+                    }
+                  }}
                   style={{
-                    background: "transparent",
-                    border: "1px solid rgba(255,255,255,0.14)",
-                    color: "#c0c8d8",
+                    background:
+                      activationSteps.length === 0 && !isProcessing
+                        ? "#ffffff"
+                        : "transparent",
+                    border:
+                      activationSteps.length === 0 && !isProcessing
+                        ? "1px solid #ffffff"
+                        : "1px solid rgba(255,255,255,0.14)",
+                    color:
+                      activationSteps.length === 0 && !isProcessing
+                        ? "#0a0a12"
+                        : "#c0c8d8",
                     padding: "6px 42px",
                     borderRadius: "14px",
                     cursor: "pointer",
@@ -4225,17 +4310,18 @@ export default function BrainViz() {
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "8px",
+                    transition: "background 0.2s ease, color 0.2s ease",
                   }}
                 >
                   Browse Preset Scenarios
                 </button>
                 {presetSheetOpen && (
                   <div
+                    className="nc-popover-up"
                     style={{
                       position: "absolute",
                       bottom: "calc(100% + 8px)",
                       left: "50%",
-                      transform: "translateX(-50%)",
                       background: "rgba(14,16,24,0.98)",
                       border: "1px solid rgba(255,255,255,0.12)",
                       borderRadius: "10px",
