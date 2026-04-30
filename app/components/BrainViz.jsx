@@ -976,6 +976,15 @@ export default function BrainViz() {
   const activeModifier =
     MODIFIERS.find((m) => m.id === activeModifierId) || null;
   const [presetSheetOpen, setPresetSheetOpen] = useState(false);
+  // Tracks whether the user has run at least one scenario this session.
+  // Drives the first-time onboarding state of the bottom bar — when
+  // false, the bar is taller with an explanation + visible preset
+  // pills; when true (after first run) the bar collapses to compact.
+  const [hasRunScenario, setHasRunScenario] = useState(false);
+  // Focus state on the textarea — drives the active-state styling on
+  // the CTA glow and the Run Scenario button so the user gets visual
+  // confirmation they're in the right place even before typing.
+  const [inputFocused, setInputFocused] = useState(false);
   // A fresh random sample of 20 presets each time the sheet opens, so
   // the full list rotates out over multiple visits.
   const [visiblePresets, setVisiblePresets] = useState([]);
@@ -987,6 +996,7 @@ export default function BrainViz() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsAnchorRef = useRef(null);
   const presetAnchorRef = useRef(null);
+  const presetAnchorOnboardingRef = useRef(null);
 
   // Multi-select Altered States picker. The selection is held in state but
   // not yet wired into the LLM prompt — UI shell first, behavior later.
@@ -1012,12 +1022,16 @@ export default function BrainViz() {
       ) {
         setStatesPickerOpen(false);
       }
-      if (
-        presetSheetOpen &&
-        presetAnchorRef.current &&
-        !presetAnchorRef.current.contains(e.target)
-      ) {
-        setPresetSheetOpen(false);
+      if (presetSheetOpen) {
+        const inMain =
+          presetAnchorRef.current &&
+          presetAnchorRef.current.contains(e.target);
+        const inOnboarding =
+          presetAnchorOnboardingRef.current &&
+          presetAnchorOnboardingRef.current.contains(e.target);
+        if (!inMain && !inOnboarding) {
+          setPresetSheetOpen(false);
+        }
       }
     };
     document.addEventListener("mousedown", onDocClick);
@@ -1717,6 +1731,9 @@ export default function BrainViz() {
         );
         // Auto-play the walkthrough the moment the scenario lands.
         setIsPlaying(true);
+        // Flip onboarding state — bottom bar collapses, Region Guide
+        // button appears, etc. Stays true for the rest of the session.
+        setHasRunScenario(true);
       }
     } catch (err) {
       setErrorMsg("Network error");
@@ -1845,6 +1862,129 @@ export default function BrainViz() {
 
   const fontStack = "var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   const displayFont = "var(--font-instrument-serif), Georgia, serif";
+
+  // Preset Scenarios popover JSX — rendered in two places so it can
+  // anchor to either the onboarding "Browse other scenarios" link
+  // (when !hasRunScenario) or the regular Browse Preset Scenarios
+  // button (after the first run).
+  const presetPopover = presetSheetOpen ? (
+    <div
+      className="nc-popover-up"
+      style={{
+        position: "absolute",
+        bottom: "calc(100% + 8px)",
+        left: "50%",
+        background: "rgba(14,16,24,0.98)",
+        border: "1px solid rgba(255,255,255,0.12)",
+        borderRadius: "10px",
+        boxShadow: "0 14px 40px rgba(0,0,0,0.5)",
+        width: "340px",
+        maxHeight: "440px",
+        display: "flex",
+        flexDirection: "column",
+        zIndex: 30,
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+      }}
+    >
+      <div
+        style={{
+          padding: "12px 14px 10px",
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: "10px",
+          flexShrink: 0,
+        }}
+      >
+        <div>
+          <div
+            style={{
+              color: "#ffffff",
+              fontSize: "13px",
+              fontWeight: 600,
+              letterSpacing: "0.02em",
+              marginBottom: "2px",
+            }}
+          >
+            Preset Scenarios
+          </div>
+          <div
+            style={{
+              color: "#7d8ba8",
+              fontSize: "11px",
+              lineHeight: 1.35,
+            }}
+          >
+            Pick a scenario to run.
+          </div>
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setPresetSheetOpen(false);
+          }}
+          aria-label="Close"
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "#7d8ba8",
+            fontFamily: fontStack,
+            fontSize: "12px",
+            cursor: "pointer",
+            padding: 0,
+            lineHeight: 1,
+            marginTop: "2px",
+          }}
+        >
+          ✕
+        </button>
+      </div>
+      <div
+        className="thin-scroll"
+        style={{
+          padding: "6px 6px 8px",
+          overflowY: "auto",
+          flex: 1,
+        }}
+      >
+        {visiblePresets.map((scenario) => (
+          <button
+            key={scenario}
+            onClick={() => {
+              setInputText(scenario);
+              setPresetSheetOpen(false);
+              processScenario(scenario);
+            }}
+            style={{
+              display: "block",
+              width: "100%",
+              background: "transparent",
+              border: "none",
+              color: "#e0e6ef",
+              padding: "8px 12px",
+              fontFamily: fontStack,
+              fontSize: "13px",
+              fontWeight: 500,
+              cursor: "pointer",
+              textAlign: "left",
+              borderRadius: "5px",
+              lineHeight: 1.35,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            {scenario}
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null;
 
 
   return (
@@ -2130,7 +2270,7 @@ export default function BrainViz() {
           }}
         >
           <div style={{ minHeight: "30px", display: "flex", alignItems: "center" }}>
-            {!showLegend && (
+            {!showLegend && hasRunScenario && (
               <button
                 onClick={() => toggleLegend(true)}
                 style={{
@@ -2172,7 +2312,7 @@ export default function BrainViz() {
                     ✓
                   </span>
                 )}
-                Open Brain Atlas
+                Open Region Guide
               </button>
             )}
           </div>
@@ -2973,21 +3113,21 @@ export default function BrainViz() {
                   className="nc-spinner-dot"
                   style={{
                     background:
-                      "radial-gradient(circle at 32% 28%, #ffd9d4 0%, #FF6A3D 35%, #b2210f 100%)",
+                      "radial-gradient(circle at 32% 28%, #ff9a78 0%, #FF6A3D 50%, #8a1a0a 100%)",
                   }}
                 />
                 <span
                   className="nc-spinner-dot"
                   style={{
                     background:
-                      "radial-gradient(circle at 32% 28%, #d4f0ff 0%, #2E9CFF 35%, #0a4d96 100%)",
+                      "radial-gradient(circle at 32% 28%, #6cb8ff 0%, #2E9CFF 50%, #0a3a72 100%)",
                   }}
                 />
                 <span
                   className="nc-spinner-dot"
                   style={{
                     background:
-                      "radial-gradient(circle at 32% 28%, #d2f7e3 0%, #10AC84 35%, #064d3a 100%)",
+                      "radial-gradient(circle at 32% 28%, #4dc9a4 0%, #10AC84 50%, #053a2a 100%)",
                   }}
                 />
               </div>
@@ -3353,8 +3493,8 @@ export default function BrainViz() {
             rel="noopener noreferrer"
             style={{
               position: "absolute",
-              bottom: "100px",
-              right: "14px",
+              bottom: "8px",
+              left: "14px",
               color: "#6a7a90",
               fontSize: "10px",
               letterSpacing: "0.04em",
@@ -3601,7 +3741,7 @@ export default function BrainViz() {
                     letterSpacing: "-0.01em",
                   }}
                 >
-                  Brain Atlas
+                  Region Guide
                 </span>
                 <span
                   style={{
@@ -3936,9 +4076,9 @@ export default function BrainViz() {
           display: "flex",
           flexDirection: "column",
           gap: "6px",
-          background: "rgba(0,0,0,0.12)",
-          backdropFilter: "blur(4px)",
-          WebkitBackdropFilter: "blur(4px)",
+          background: "rgba(0,0,0,0.18)",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
           zIndex: 6,
         }}
       >
@@ -3975,13 +4115,47 @@ export default function BrainViz() {
               position: "relative",
             }}
           >
+            {!hasRunScenario && (
+              <div
+                className="nc-onboarding-block"
+                style={{
+                  textAlign: "center",
+                  color: "#c8d0dc",
+                  fontFamily: displayFont,
+                  fontSize: "22px",
+                  lineHeight: 1.35,
+                  letterSpacing: "-0.005em",
+                  maxWidth: "70%",
+                  margin: "0 auto",
+                  padding: "20px 8px 24px",
+                }}
+              >
+                See how your brain responds to any experience.
+                <br />
+                Type a moment, a sensation, or a memory — and watch
+                <br />
+                the regions of your brain activate in real time.
+              </div>
+            )}
             <div
               style={{
                 display: "flex",
                 alignItems: "stretch",
                 position: "relative",
+                borderRadius: "14px",
+                overflow: !hasRunScenario ? "hidden" : "visible",
               }}
             >
+              {!hasRunScenario && (
+                <span
+                  aria-hidden="true"
+                  className={
+                    inputFocused
+                      ? "nc-input-cta-glow nc-input-cta-glow-focused"
+                      : "nc-input-cta-glow"
+                  }
+                />
+              )}
               {/* Frosted dark glass panel per the glass-field-dev-spec:
                   - Dark tinted fill (~65% opacity)
                   - backdrop-filter blurs whatever is behind it (the red +
@@ -4021,6 +4195,8 @@ export default function BrainViz() {
                 <textarea
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
+                  onFocus={() => setInputFocused(true)}
+                  onBlur={() => setInputFocused(false)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
@@ -4048,16 +4224,19 @@ export default function BrainViz() {
               </div>
               <button
                 onClick={processScenario}
-                disabled={isProcessing || !inputText.trim()}
+                disabled={Boolean(isProcessing || !inputText.trim())}
                 style={{
                   position: "relative",
                   zIndex: 2,
                   marginLeft: "-1px",
                   height: "38px",
                   minWidth: "186px",
-                  background: isProcessing || !inputText.trim()
+                  background: isProcessing
+                    ? "rgba(255,255,255,0.3)"
+                    : !inputText.trim() && !inputFocused
                     ? "rgba(255,255,255,0.3)"
                     : "#ffffff",
+                  transition: "background 0.2s ease",
                   border: "none",
                   color: "#0a0a12",
                   padding: "0 22px",
@@ -4103,9 +4282,83 @@ export default function BrainViz() {
               </button>
             </div>
 
+            {!hasRunScenario && (
+              <div
+                className="nc-onboarding-block"
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  marginTop: "12px",
+                  padding: "0 8px",
+                  position: "relative",
+                  zIndex: 50,
+                }}
+              >
+                {[
+                  "Someone throws me a baseball",
+                  "I smell fresh coffee brewing in the morning",
+                  "I hear my favorite song from childhood",
+                ].map((scenario) => (
+                  <button
+                    key={scenario}
+                    onClick={() => {
+                      setInputText(scenario);
+                      processScenario(scenario);
+                    }}
+                    style={{
+                      background: "rgba(255,255,255,0.06)",
+                      border: "1px solid rgba(255,255,255,0.14)",
+                      color: "#e0e6ef",
+                      padding: "6px 14px",
+                      borderRadius: "14px",
+                      cursor: "pointer",
+                      fontFamily: fontStack,
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      whiteSpace: "nowrap",
+                      transition: "background 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "rgba(255,255,255,0.12)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+                    }}
+                  >
+                    {scenario}
+                  </button>
+                ))}
+                <div
+                  ref={presetAnchorOnboardingRef}
+                  style={{ position: "relative", zIndex: 50 }}
+                >
+                  <button
+                    onClick={() => setPresetSheetOpen((v) => !v)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "#8892a4",
+                      padding: "6px 8px",
+                      cursor: "pointer",
+                      fontFamily: fontStack,
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      textDecoration: "underline",
+                      textUnderlineOffset: "3px",
+                    }}
+                  >
+                    Browse other scenarios →
+                  </button>
+                  {presetPopover}
+                </div>
+              </div>
+            )}
             <div
               style={{
-                display: "flex",
+                display: hasRunScenario ? "flex" : "none",
                 justifyContent: "center",
                 gap: "10px",
                 marginTop: "8px",
@@ -4275,33 +4528,16 @@ export default function BrainViz() {
                 <button
                   onClick={() => setPresetSheetOpen((v) => !v)}
                   onMouseEnter={(e) => {
-                    if (activationSteps.length === 0 && !isProcessing) {
-                      e.currentTarget.style.background = "#e8ecf2";
-                    } else {
-                      e.currentTarget.style.background =
-                        "rgba(255,255,255,0.06)";
-                    }
+                    e.currentTarget.style.background =
+                      "rgba(255,255,255,0.06)";
                   }}
                   onMouseLeave={(e) => {
-                    if (activationSteps.length === 0 && !isProcessing) {
-                      e.currentTarget.style.background = "#ffffff";
-                    } else {
-                      e.currentTarget.style.background = "transparent";
-                    }
+                    e.currentTarget.style.background = "transparent";
                   }}
                   style={{
-                    background:
-                      activationSteps.length === 0 && !isProcessing
-                        ? "#ffffff"
-                        : "transparent",
-                    border:
-                      activationSteps.length === 0 && !isProcessing
-                        ? "1px solid #ffffff"
-                        : "1px solid rgba(255,255,255,0.14)",
-                    color:
-                      activationSteps.length === 0 && !isProcessing
-                        ? "#0a0a12"
-                        : "#c0c8d8",
+                    background: "transparent",
+                    border: "1px solid rgba(255,255,255,0.14)",
+                    color: "#c0c8d8",
                     padding: "6px 42px",
                     borderRadius: "14px",
                     cursor: "pointer",
@@ -4311,132 +4547,12 @@ export default function BrainViz() {
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "8px",
-                    transition: "background 0.2s ease, color 0.2s ease",
+                    transition: "background 0.2s ease",
                   }}
                 >
                   Browse Preset Scenarios
                 </button>
-                {presetSheetOpen && (
-                  <div
-                    className="nc-popover-up"
-                    style={{
-                      position: "absolute",
-                      bottom: "calc(100% + 8px)",
-                      left: "50%",
-                      background: "rgba(14,16,24,0.98)",
-                      border: "1px solid rgba(255,255,255,0.12)",
-                      borderRadius: "10px",
-                      boxShadow: "0 14px 40px rgba(0,0,0,0.5)",
-                      width: "340px",
-                      maxHeight: "440px",
-                      display: "flex",
-                      flexDirection: "column",
-                      zIndex: 30,
-                      backdropFilter: "blur(10px)",
-                      WebkitBackdropFilter: "blur(10px)",
-                    }}
-                  >
-                    {/* Fixed header with title + close X */}
-                    <div
-                      style={{
-                        padding: "12px 14px 10px",
-                        borderBottom: "1px solid rgba(255,255,255,0.08)",
-                        display: "flex",
-                        alignItems: "flex-start",
-                        justifyContent: "space-between",
-                        gap: "10px",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <div>
-                        <div
-                          style={{
-                            color: "#ffffff",
-                            fontSize: "13px",
-                            fontWeight: 600,
-                            letterSpacing: "0.02em",
-                            marginBottom: "2px",
-                          }}
-                        >
-                          Preset Scenarios
-                        </div>
-                        <div
-                          style={{
-                            color: "#7d8ba8",
-                            fontSize: "11px",
-                            lineHeight: 1.35,
-                          }}
-                        >
-                          Pick a scenario to run.
-                        </div>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPresetSheetOpen(false);
-                        }}
-                        aria-label="Close"
-                        style={{
-                          background: "transparent",
-                          border: "none",
-                          color: "#7d8ba8",
-                          fontFamily: fontStack,
-                          fontSize: "12px",
-                          cursor: "pointer",
-                          padding: 0,
-                          lineHeight: 1,
-                          marginTop: "2px",
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                    {/* Scrollable list */}
-                    <div
-                      className="thin-scroll"
-                      style={{
-                        padding: "6px 6px 8px",
-                        overflowY: "auto",
-                        flex: 1,
-                      }}
-                    >
-                      {visiblePresets.map((scenario) => (
-                        <button
-                          key={scenario}
-                          onClick={() => {
-                            setInputText(scenario);
-                            setPresetSheetOpen(false);
-                            processScenario(scenario);
-                          }}
-                          style={{
-                            display: "block",
-                            width: "100%",
-                            background: "transparent",
-                            border: "none",
-                            color: "#e0e6ef",
-                            padding: "8px 12px",
-                            fontFamily: fontStack,
-                            fontSize: "13px",
-                            fontWeight: 500,
-                            cursor: "pointer",
-                            textAlign: "left",
-                            borderRadius: "5px",
-                            lineHeight: 1.35,
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background =
-                              "rgba(255,255,255,0.05)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = "transparent";
-                          }}
-                        >
-                          {scenario}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {presetPopover}
               </div>
             </div>
           </div>

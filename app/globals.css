@@ -126,6 +126,67 @@ a {
   animation: nc-wordmark-flow 16s ease-in-out infinite alternate;
 }
 
+/* Primary-CTA glow on the scenario input row. Fixed rounded rectangle
+   sitting behind the input — the SHAPE doesn't move, but a horizontal
+   stack of region-colored radial blooms drifts left↔right inside it,
+   mirroring the Neural Cascade wordmark's color flow. Slight blur so
+   the edges read as a halo rather than a solid block. */
+.nc-input-cta-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(8px);
+  opacity: 0.3;
+  background-size: 200% 100%;
+  transition: opacity 0.25s ease;
+  background-repeat: no-repeat;
+  background-position: 0% 50%;
+  background-image:
+    radial-gradient(ellipse 22% 200% at 4% 50%, rgba(255,106,61,0.7) 0%, transparent 55%),
+    radial-gradient(ellipse 20% 200% at 14% 50%, rgba(255,159,67,0.78) 0%, transparent 55%),
+    radial-gradient(ellipse 24% 200% at 24% 50%, rgba(255,184,77,0.78) 0%, transparent 55%),
+    radial-gradient(ellipse 22% 200% at 35% 50%, rgba(0,229,168,0.55) 0%, transparent 55%),
+    radial-gradient(ellipse 22% 200% at 46% 50%, rgba(46,156,255,0.55) 0%, transparent 55%),
+    radial-gradient(ellipse 22% 200% at 56% 50%, rgba(15,95,214,0.5) 0%, transparent 55%),
+    radial-gradient(ellipse 22% 200% at 66% 50%, rgba(216,100,255,0.62) 0%, transparent 55%),
+    radial-gradient(ellipse 22% 200% at 77% 50%, rgba(155,43,255,0.6) 0%, transparent 55%),
+    radial-gradient(ellipse 22% 200% at 88% 50%, rgba(78,217,104,0.55) 0%, transparent 55%),
+    radial-gradient(ellipse 22% 200% at 96% 50%, rgba(255,184,77,0.7) 0%, transparent 55%);
+  animation: nc-wordmark-flow 16s ease-in-out infinite alternate;
+}
+
+/* Brighter glow when the textarea is focused — signals "this is the
+   active surface" without needing typed input first. */
+.nc-input-cta-glow-focused {
+  opacity: 0.7;
+}
+
+/* Onboarding copy block above the input row. Fades out before the
+   container collapses so it doesn't squash awkwardly. Overflow is
+   only clamped during the fade-out so the popover (which renders
+   above the link at calc(100% + 8px)) isn't clipped during normal
+   onboarding state. */
+.nc-onboarding-block {
+  animation: nc-onboarding-in 320ms ease-out forwards;
+}
+
+.nc-onboarding-block.fading {
+  animation: nc-onboarding-out 220ms ease-out forwards;
+  overflow: hidden;
+}
+
+@keyframes nc-onboarding-in {
+  0% { opacity: 0; transform: translateY(-4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes nc-onboarding-out {
+  0% { opacity: 1; max-height: 280px; }
+  100% { opacity: 0; max-height: 0; }
+}
+
 /* Popover that rises up from the button below — used by Browse Preset
    Scenarios + Altered States. Scales from 92% with a slight upward
    translate while fading in. ~220ms ease-out so it feels alive.
@@ -237,31 +298,55 @@ a {
 }
 
 .nc-spinner-dot:nth-child(1) {
-  animation: nc-spinner-orbit-1 2.4s ease-in-out infinite;
+  animation: nc-spinner-orbit-1 1.7s linear infinite;
 }
 .nc-spinner-dot:nth-child(2) {
-  animation: nc-spinner-orbit-2 2.4s ease-in-out infinite;
+  animation: nc-spinner-orbit-2 1.7s linear infinite;
 }
 .nc-spinner-dot:nth-child(3) {
-  animation: nc-spinner-orbit-3 2.4s ease-in-out infinite;
+  animation: nc-spinner-orbit-3 1.7s linear infinite;
 }
 
 @keyframes nc-spinner-orbit-1 {
-  0%, 20%   { transform: rotate(0deg)   translate(0, -13px) rotate(0deg);   }
-  50%, 70%  { transform: rotate(180deg) translate(0, -13px) rotate(-180deg); }
-  100%      { transform: rotate(360deg) translate(0, -13px) rotate(-360deg); }
+  0%, 18% {
+    transform: rotate(0deg) translate(0, -13px) rotate(0deg) scale(1);
+    animation-timing-function: ease-in;
+  }
+  48%, 54% {
+    transform: rotate(180deg) translate(0, -4px) rotate(-180deg) scale(0.6);
+    animation-timing-function: ease-out;
+  }
+  100% {
+    transform: rotate(360deg) translate(0, -13px) rotate(-360deg) scale(1);
+  }
 }
 
 @keyframes nc-spinner-orbit-2 {
-  0%, 20%   { transform: rotate(120deg) translate(0, -13px) rotate(-120deg); }
-  50%, 70%  { transform: rotate(300deg) translate(0, -13px) rotate(-300deg); }
-  100%      { transform: rotate(480deg) translate(0, -13px) rotate(-480deg); }
+  0%, 18% {
+    transform: rotate(120deg) translate(0, -13px) rotate(-120deg) scale(1);
+    animation-timing-function: ease-in;
+  }
+  48%, 54% {
+    transform: rotate(300deg) translate(0, -4px) rotate(-300deg) scale(0.6);
+    animation-timing-function: ease-out;
+  }
+  100% {
+    transform: rotate(480deg) translate(0, -13px) rotate(-480deg) scale(1);
+  }
 }
 
 @keyframes nc-spinner-orbit-3 {
-  0%, 20%   { transform: rotate(240deg) translate(0, -13px) rotate(-240deg); }
-  50%, 70%  { transform: rotate(420deg) translate(0, -13px) rotate(-420deg); }
-  100%      { transform: rotate(600deg) translate(0, -13px) rotate(-600deg); }
+  0%, 18% {
+    transform: rotate(240deg) translate(0, -13px) rotate(-240deg) scale(1);
+    animation-timing-function: ease-in;
+  }
+  48%, 54% {
+    transform: rotate(420deg) translate(0, -4px) rotate(-420deg) scale(0.6);
+    animation-timing-function: ease-out;
+  }
+  100% {
+    transform: rotate(600deg) translate(0, -13px) rotate(-600deg) scale(1);
+  }
 }
 
 /* Region card entrance — every card starts at the same time, all
