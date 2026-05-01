@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import * as THREE from "three";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
+import useFaceTracking from "../hooks/useFaceTracking";
 
 const BRAIN_REGIONS = [
   {
@@ -981,6 +982,25 @@ export default function BrainViz() {
   // false, the bar is taller with an explanation + visible preset
   // pills; when true (after first run) the bar collapses to compact.
   const [hasRunScenario, setHasRunScenario] = useState(false);
+
+  const {
+    isTracking: faceTracking,
+    isLoading: faceTrackingLoading,
+    error: faceTrackingError,
+    rotationRef: faceRotationRef,
+    videoRef: faceVideoRef,
+    startTracking: startFaceTracking,
+    stopTracking: stopFaceTracking,
+  } = useFaceTracking();
+  const faceTrackingRef = useRef(false);
+  useEffect(() => {
+    faceTrackingRef.current = faceTracking;
+  }, [faceTracking]);
+  // Lerps 0→1 when face tracking is on, 1→0 when off. Used in the
+  // animation loop to interpolate the brain's Y position and the
+  // camera's Z so the head shifts up + the camera pulls back during
+  // tracking, then transitions smoothly back when it's off.
+  const trackingMixRef = useRef(0);
   // Focus state on the textarea — drives the active-state styling on
   // the CTA glow and the Run Scenario button so the user gets visual
   // confirmation they're in the right place even before typing.
@@ -1465,33 +1485,71 @@ export default function BrainViz() {
       rotation.current.x += (targetRotation.current.x - rotation.current.x) * 0.08;
       rotation.current.y += (targetRotation.current.y - rotation.current.y) * 0.08;
 
-      if (!isDragging.current) {
+      // Auto-rotation only when not dragging AND face tracking is off,
+      // so head movement doesn't fight the ambient spin.
+      if (!isDragging.current && !faceTrackingRef.current) {
         targetRotation.current.y += 0.002;
       }
 
-      brainGroupRef.current.rotation.x = rotation.current.x;
-      brainGroupRef.current.rotation.y = rotation.current.y;
-
-      // Environment (grid + horizon) locks to both axes of the brain's
-      // rotation so tilting forward/back carries the ground plane too.
-      if (envGroupRef.current) {
-        envGroupRef.current.rotation.x = rotation.current.x;
-        envGroupRef.current.rotation.y = rotation.current.y;
+      // Face tracking overrides manual rotation when active. The hook
+      // already smooths + clamps via its own lerp loop, so we apply
+      // it directly. Roll (z) only used when face tracking is on.
+      if (faceTrackingRef.current && faceRotationRef.current) {
+        const fr = faceRotationRef.current;
+        brainGroupRef.current.rotation.x = fr.x;
+        brainGroupRef.current.rotation.y = fr.y;
+        brainGroupRef.current.rotation.z = fr.z;
+        if (envGroupRef.current) {
+          envGroupRef.current.rotation.x = fr.x;
+          envGroupRef.current.rotation.y = fr.y;
+          envGroupRef.current.rotation.z = 0;
+        }
+      } else {
+        brainGroupRef.current.rotation.x = rotation.current.x;
+        brainGroupRef.current.rotation.y = rotation.current.y;
+        brainGroupRef.current.rotation.z = 0;
+        if (envGroupRef.current) {
+          envGroupRef.current.rotation.x = rotation.current.x;
+          envGroupRef.current.rotation.y = rotation.current.y;
+          envGroupRef.current.rotation.z = 0;
+        }
       }
+
+      // Lerp the tracking-mode mix so brain/camera transitions smoothly
+      // between default and "face tracking" framing.
+      const mixTarget = faceTrackingRef.current ? 1 : 0;
+      trackingMixRef.current +=
+        (mixTarget - trackingMixRef.current) * 0.05;
+      const mix = trackingMixRef.current;
 
       // Gentle elliptical drift of the whole assembly. Non-repeating because
       // the X and Y periods are coprime, so the motion never settles into a
       // visible loop. Subtle amplitude on purpose.
-      // Constant rightward offset on top of the lazy ellipse drift, so
-      // the head sits a touch right-of-center.
-      brainGroupRef.current.position.x = 0.45 + Math.sin(t * 0.13) * 0.18;
-      // Constant downward offset so the head/brain sit lower in the canvas
-      // and don't crowd the top header bar.
-      brainGroupRef.current.position.y = -0.38 + Math.cos(t * 0.1) * 0.09;
+      // Constant rightward offset on top of the lazy ellipse drift; in
+      // tracking mode the brain centers up, so we mix toward 0.
+      const baseX = 0.45;
+      const trackX = 0;
+      brainGroupRef.current.position.x =
+        baseX + (trackX - baseX) * mix + Math.sin(t * 0.13) * 0.18;
+      // Constant downward offset normally, lifted up in tracking mode
+      // so the head reads as the focus and the brain sits higher in
+      // the canvas.
+      const baseY = -0.38;
+      const trackY = 0.085;
+      brainGroupRef.current.position.y =
+        baseY + (trackY - baseY) * mix + Math.cos(t * 0.1) * 0.09;
       // Constant z offset pushing the whole assembly (and its drift
       // ellipse) away from the camera, so even at the closest point of
       // the ebb the brain still clears the foreground UI.
       brainGroupRef.current.position.z = -0.6;
+
+      // Pull the camera back during tracking so the head reads with
+      // more breathing room.
+      if (cameraRef.current) {
+        const baseZ = 2.4;
+        const trackZ = 3.2;
+        cameraRef.current.position.z = baseZ + (trackZ - baseZ) * mix;
+      }
 
       const nodes = nodesRef.current;
       const meshes = nodeMeshesRef.current;
@@ -2269,7 +2327,7 @@ export default function BrainViz() {
             minWidth: "230px",
           }}
         >
-          <div style={{ minHeight: "30px", display: "flex", alignItems: "center" }}>
+          <div style={{ minHeight: "30px", display: "flex", alignItems: "center", gap: "8px" }}>
             {!showLegend && hasRunScenario && (
               <button
                 onClick={() => toggleLegend(true)}
@@ -3046,15 +3104,107 @@ export default function BrainViz() {
         <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
           <div
             ref={mountRef}
-            style={{ width: "100%", height: "100%", cursor: "grab" }}
-            onMouseDown={handlePointerDown}
-            onMouseMove={handlePointerMove}
-            onMouseUp={handlePointerUp}
-            onMouseLeave={handlePointerUp}
-            onTouchStart={handlePointerDown}
-            onTouchMove={handlePointerMove}
-            onTouchEnd={handlePointerUp}
+            style={{
+              width: "100%",
+              height: "100%",
+              cursor: faceTracking ? "default" : "grab",
+            }}
+            onMouseDown={faceTracking ? undefined : handlePointerDown}
+            onMouseMove={faceTracking ? undefined : handlePointerMove}
+            onMouseUp={faceTracking ? undefined : handlePointerUp}
+            onMouseLeave={faceTracking ? undefined : handlePointerUp}
+            onTouchStart={faceTracking ? undefined : handlePointerDown}
+            onTouchMove={faceTracking ? undefined : handlePointerMove}
+            onTouchEnd={faceTracking ? undefined : handlePointerUp}
           />
+          {/* Face Tracking widget — anchored on the right edge, ~20px
+              above the bottom-bar's top border. The button always sits
+              at the same anchor; the webcam preview opens UPWARD from
+              the button when tracking turns on. */}
+          <div
+            style={{
+              position: "absolute",
+              right: "16px",
+              bottom: hasRunScenario ? "120px" : "286px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "stretch",
+              width: "180px",
+              zIndex: 8,
+              transition: "bottom 0.3s ease",
+            }}
+          >
+            <div
+              style={{
+                maxHeight: faceTracking ? "135px" : "0px",
+                overflow: "hidden",
+                transition: "max-height 0.3s ease",
+              }}
+            >
+              <video
+                ref={faceVideoRef}
+                playsInline
+                muted
+                autoPlay
+                style={{
+                  width: "100%",
+                  height: "135px",
+                  objectFit: "cover",
+                  borderRadius: "14px 14px 0 0",
+                  border: "1px solid rgba(109,227,138,0.55)",
+                  borderBottom: "none",
+                  display: "block",
+                  transform: "scaleX(-1)",
+                  background: "#000",
+                  pointerEvents: "none",
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
+                }}
+              />
+            </div>
+            <button
+              onClick={() => {
+                if (faceTracking) stopFaceTracking();
+                else startFaceTracking();
+              }}
+              disabled={faceTrackingLoading}
+              style={{
+                background: faceTracking
+                  ? "rgba(109,227,138,0.18)"
+                  : "rgba(255,255,255,0.04)",
+                border: faceTracking
+                  ? "1px solid rgba(109,227,138,0.55)"
+                  : "1px solid rgba(255,255,255,0.1)",
+                color: faceTracking ? "#a4f0b3" : "#c0c8d8",
+                padding: "6px 14px",
+                borderRadius: faceTracking ? "0 0 14px 14px" : "14px",
+                cursor: faceTrackingLoading ? "default" : "pointer",
+                fontFamily: fontStack,
+                fontSize: "12px",
+                fontWeight: 500,
+                letterSpacing: "0.04em",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                userSelect: "none",
+                WebkitUserSelect: "none",
+                opacity: faceTrackingLoading ? 0.6 : 1,
+                transition: "all 0.2s ease",
+                width: "100%",
+                marginTop: faceTracking ? "-1px" : "0",
+                backdropFilter: "blur(6px)",
+                WebkitBackdropFilter: "blur(6px)",
+              }}
+              title={faceTrackingError || ""}
+            >
+              <span aria-hidden="true">●</span>
+              {faceTrackingLoading
+                ? "Starting…"
+                : faceTracking
+                ? "Face Tracking On"
+                : "Face Tracking"}
+            </button>
+          </div>
           {/* Step transition iris — three layered expanding circles
               with staggered delays. Each pulls a random region color
               from the brain palette so every transition has a fresh
