@@ -367,6 +367,48 @@ const MODIFIERS = [
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
+// Hand bones — pairs of MediaPipe landmark indices. Each pair gets
+// its own cylinder mesh that spans between the two joint positions
+// each frame, so fingers render as discrete tubes (wireframe so they
+// match the head's crosshatched style).
+const HAND_BONES = [
+  // Thumb
+  [0, 1], [1, 2], [2, 3], [3, 4],
+  // Index
+  [0, 5], [5, 6], [6, 7], [7, 8],
+  // Middle
+  [0, 9], [9, 10], [10, 11], [11, 12],
+  // Ring
+  [0, 13], [13, 14], [14, 15], [15, 16],
+  // Pinky
+  [0, 17], [17, 18], [18, 19], [19, 20],
+  // Palm crossbars across the knuckle line
+  [5, 9], [9, 13], [13, 17],
+  // Thenar / palm-edge bones — close the palm into a defined shape so
+  // the thumb reads as anchored on the side of the palm rather than
+  // jutting out from the wrist.
+  [1, 5],
+  [2, 5],
+];
+
+// Map a MediaPipe normalized hand landmark to scene-space coords.
+// MediaPipe x: 0..1 left-to-right of the original (un-mirrored) frame
+// MediaPipe y: 0..1 top-to-bottom
+// MediaPipe z: depth relative to wrist, negative = closer to camera
+// We mirror X so the user's right hand appears on screen-right of
+// the puppet (matching the mirrored webcam preview the user sees).
+function handLandmarkToScene(lm) {
+  return new THREE.Vector3(
+    -(lm.x - 0.5) * 3.6,
+    -(lm.y - 0.5) * 2.88,
+    -lm.z * 2.88 + 1.44
+  );
+}
+
+// MediaPipe landmark indices for each fingertip — rendered as a dome
+// (sphere) at the end of each finger so the hand finishes properly.
+const HAND_FINGERTIPS = [4, 8, 12, 16, 20];
+
 // Crude but instant scenario summarizer used by the loading toast.
 // Strips out filler / function words, takes the first few significant
 // content words, and title-cases the result. The goal is a 2–4 word
@@ -895,6 +937,11 @@ export default function BrainViz() {
   // loop reads this every frame to give the highlighted region's nodes
   // an extra pulse on top of their normal activation level.
   const highlightedRegionIdRef = useRef(null);
+  // Hand skeleton scene objects. Two hand "rigs", each with 21 joint
+  // sphere meshes + 23 line segments built from HAND_CONNECTIONS.
+  // Created once in the scene-init effect, updated each animation
+  // frame from the live handsRef the face-tracking hook exposes.
+  const handRigsRef = useRef(null);
   // Outer glow sprite per node. Same order as nodeMeshesRef so the
   // animation loop can iterate them in lockstep.
   const nodeGlowsRef = useRef([]);
@@ -988,6 +1035,7 @@ export default function BrainViz() {
     isLoading: faceTrackingLoading,
     error: faceTrackingError,
     rotationRef: faceRotationRef,
+    handsRef: faceHandsRef,
     videoRef: faceVideoRef,
     startTracking: startFaceTracking,
     stopTracking: stopFaceTracking,
@@ -1116,6 +1164,62 @@ export default function BrainViz() {
     const brainGroup = new THREE.Group();
     scene.add(brainGroup);
     brainGroupRef.current = brainGroup;
+
+    // === Hand bone-cylinder rigs ===
+    // Two pre-built hand rigs sit at scene root (NOT inside brainGroup,
+    // so they don't inherit head-tracking rotation). Each rig is a
+    // group of 23 thin wireframe cylinders, one per HAND_BONES entry.
+    // Each cylinder is transformed per-frame to span between its two
+    // MediaPipe landmark positions — same low-poly crosshatched
+    // language as the head wireframe, but applied per finger segment.
+    const handBoneGeometry = new THREE.CylinderGeometry(
+      0.044, // radiusTop
+      0.044, // radiusBottom
+      1, // height (we scale Y to bone length each frame)
+      6, // radialSegments — hexagonal cross-section
+      1 // heightSegments
+    );
+    // Sphere cap geometry sat at every fingertip so the bones finish
+    // with a rounded dome instead of an open cylinder face.
+    const handTipGeometry = new THREE.SphereGeometry(0.05, 10, 10);
+    const buildHandRig = () => {
+      const group = new THREE.Group();
+      group.visible = false;
+      const bones = HAND_BONES.map(() => {
+        const mat = new THREE.MeshBasicMaterial({
+          color: 0x5b7da8,
+          wireframe: true,
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+        });
+        const mesh = new THREE.Mesh(handBoneGeometry, mat);
+        group.add(mesh);
+        return mesh;
+      });
+      const tips = HAND_FINGERTIPS.map(() => {
+        const mat = new THREE.MeshBasicMaterial({
+          color: 0x5b7da8,
+          wireframe: true,
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+        });
+        const mesh = new THREE.Mesh(handTipGeometry, mat);
+        group.add(mesh);
+        return mesh;
+      });
+      group.userData.weight = 0;
+      group.userData.smoothed = new Array(21)
+        .fill(null)
+        .map(() => new THREE.Vector3());
+      group.userData.hasInit = false;
+      group.userData.bones = bones;
+      group.userData.tips = tips;
+      scene.add(group);
+      return group;
+    };
+    handRigsRef.current = [buildHandRig(), buildHandRig()];
 
     // Brain sits inside a sub-group offset back (-z) and up (+y) relative to
     // the head, so clusters sit higher in the skull and away from the face.
@@ -1547,7 +1651,7 @@ export default function BrainViz() {
       // more breathing room.
       if (cameraRef.current) {
         const baseZ = 2.4;
-        const trackZ = 3.2;
+        const trackZ = 4.2;
         cameraRef.current.position.z = baseZ + (trackZ - baseZ) * mix;
       }
 
@@ -1708,6 +1812,71 @@ export default function BrainViz() {
           (stateOpacity - line.material.opacity) * 0.06;
         line.visible = line.material.opacity > 0.02;
       });
+
+      // === Hand bone-cylinder update ===
+      // Pull the latest MediaPipe hand detections from the hook and
+      // drive the two pre-built rigs. For each detected hand we
+      // smooth-lerp the 21 joint positions, then orient each cylinder
+      // mesh to span between its two endpoint landmarks (midpoint,
+      // length, axis quaternion).
+      if (handRigsRef.current && faceHandsRef.current) {
+        const detections = faceHandsRef.current;
+        const rigs = handRigsRef.current;
+        const POSITION_LERP = 0.25;
+        const OPACITY_LERP = 0.12;
+        const WIREFRAME_TARGET = 0.06;
+        const Y_AXIS = new THREE.Vector3(0, 1, 0);
+        const tmpDir = new THREE.Vector3();
+        const tmpMid = new THREE.Vector3();
+
+        rigs.forEach((rig, idx) => {
+          const det = detections[idx];
+          const targetWeight = det && faceTrackingRef.current ? 1 : 0;
+          rig.userData.weight +=
+            (targetWeight - rig.userData.weight) * OPACITY_LERP;
+          const w = rig.userData.weight;
+          rig.visible = w > 0.02;
+
+          if (det && det.landmarks && det.landmarks.length === 21) {
+            for (let i = 0; i < 21; i++) {
+              const target = handLandmarkToScene(det.landmarks[i]);
+              const smoothed = rig.userData.smoothed[i];
+              if (!rig.userData.hasInit) {
+                smoothed.copy(target);
+              } else {
+                smoothed.lerp(target, POSITION_LERP);
+              }
+            }
+            rig.userData.hasInit = true;
+
+            HAND_BONES.forEach(([a, b], i) => {
+              const pa = rig.userData.smoothed[a];
+              const pb = rig.userData.smoothed[b];
+              tmpDir.copy(pb).sub(pa);
+              const length = tmpDir.length();
+              if (length < 1e-5) return;
+              tmpMid.copy(pa).add(pb).multiplyScalar(0.5);
+              tmpDir.normalize();
+              const bone = rig.userData.bones[i];
+              bone.position.copy(tmpMid);
+              bone.scale.set(1, length, 1);
+              bone.quaternion.setFromUnitVectors(Y_AXIS, tmpDir);
+            });
+
+            HAND_FINGERTIPS.forEach((tipIndex, i) => {
+              const tip = rig.userData.tips[i];
+              tip.position.copy(rig.userData.smoothed[tipIndex]);
+            });
+          }
+
+          rig.userData.bones.forEach((bone) => {
+            bone.material.opacity = w * WIREFRAME_TARGET;
+          });
+          rig.userData.tips.forEach((tip) => {
+            tip.material.opacity = w * WIREFRAME_TARGET;
+          });
+        });
+      }
 
       rendererRef.current.render(sceneRef.current, cameraRef.current);
     };
@@ -3136,7 +3305,7 @@ export default function BrainViz() {
           >
             <div
               style={{
-                maxHeight: faceTracking ? "135px" : "0px",
+                maxHeight: faceTracking ? "108px" : "0px",
                 overflow: "hidden",
                 transition: "max-height 0.3s ease",
               }}
@@ -3148,10 +3317,10 @@ export default function BrainViz() {
                 autoPlay
                 style={{
                   width: "100%",
-                  height: "135px",
+                  height: "108px",
                   objectFit: "cover",
                   borderRadius: "14px 14px 0 0",
-                  border: "1px solid rgba(109,227,138,0.55)",
+                  border: "1px solid rgba(91,125,168,0.7)",
                   borderBottom: "none",
                   display: "block",
                   transform: "scaleX(-1)",
@@ -3169,12 +3338,12 @@ export default function BrainViz() {
               disabled={faceTrackingLoading}
               style={{
                 background: faceTracking
-                  ? "rgba(109,227,138,0.18)"
+                  ? "rgba(40,58,86,0.85)"
                   : "rgba(255,255,255,0.04)",
                 border: faceTracking
-                  ? "1px solid rgba(109,227,138,0.55)"
+                  ? "1px solid rgba(91,125,168,0.7)"
                   : "1px solid rgba(255,255,255,0.1)",
-                color: faceTracking ? "#a4f0b3" : "#c0c8d8",
+                color: faceTracking ? "#a8c5ec" : "#c0c8d8",
                 padding: "6px 14px",
                 borderRadius: faceTracking ? "0 0 14px 14px" : "14px",
                 cursor: faceTrackingLoading ? "default" : "pointer",
@@ -3197,7 +3366,12 @@ export default function BrainViz() {
               }}
               title={faceTrackingError || ""}
             >
-              <span aria-hidden="true">●</span>
+              <span
+                aria-hidden="true"
+                style={{ color: faceTracking ? "#6de38a" : "inherit" }}
+              >
+                ●
+              </span>
               {faceTrackingLoading
                 ? "Starting…"
                 : faceTracking

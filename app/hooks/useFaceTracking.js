@@ -17,7 +17,16 @@ export default function useFaceTracking() {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const landmarkerRef = useRef(null);
+  const handLandmarkerRef = useRef(null);
   const rafRef = useRef(null);
+
+  // Hand tracking output. handsRef.current is an array of up to 2
+  // entries, each with `landmarks: Array<{x,y,z}>` (21 entries) and
+  // `handedness: "Left" | "Right"`. Coordinates are in MediaPipe's
+  // normalized image space — the consumer maps them to scene coords.
+  // visibleRef.current tracks whether each hand slot is currently
+  // active (drives fade-in / fade-out).
+  const handsRef = useRef([]);
 
   // Latest face-derived rotation (smoothed + clamped). Consumed each
   // animation frame by BrainViz's render loop. Defaults to zeros so
@@ -59,14 +68,14 @@ export default function useFaceTracking() {
     try {
       // Lazy-load MediaPipe so it doesn't ship until a user actually
       // turns tracking on.
-      const { FaceLandmarker, FilesetResolver } = await import(
-        "@mediapipe/tasks-vision"
+      const { FaceLandmarker, HandLandmarker, FilesetResolver } =
+        await import("@mediapipe/tasks-vision");
+
+      const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
       );
 
       if (!landmarkerRef.current) {
-        const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
-        );
         landmarkerRef.current = await FaceLandmarker.createFromOptions(
           vision,
           {
@@ -79,6 +88,21 @@ export default function useFaceTracking() {
             numFaces: 1,
             outputFaceBlendshapes: false,
             outputFacialTransformationMatrixes: true,
+          }
+        );
+      }
+
+      if (!handLandmarkerRef.current) {
+        handLandmarkerRef.current = await HandLandmarker.createFromOptions(
+          vision,
+          {
+            baseOptions: {
+              modelAssetPath:
+                "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+              delegate: "GPU",
+            },
+            runningMode: "VIDEO",
+            numHands: 2,
           }
         );
       }
@@ -124,6 +148,25 @@ export default function useFaceTracking() {
           videoRef.current,
           ts
         );
+
+        // Hand detection runs on the same frame. Each detection shares
+        // the timestamp with the face call so MediaPipe doesn't reject
+        // the input as duplicate.
+        if (handLandmarkerRef.current) {
+          const handResult = handLandmarkerRef.current.detectForVideo(
+            videoRef.current,
+            ts
+          );
+          if (handResult && handResult.landmarks) {
+            const handednesses = handResult.handedness || [];
+            handsRef.current = handResult.landmarks.map((lm, i) => ({
+              landmarks: lm,
+              handedness: handednesses[i]?.[0]?.categoryName || "Right",
+            }));
+          } else {
+            handsRef.current = [];
+          }
+        }
 
         if (
           result &&
@@ -181,6 +224,11 @@ export default function useFaceTracking() {
           landmarkerRef.current.close();
         } catch {}
       }
+      if (handLandmarkerRef.current && handLandmarkerRef.current.close) {
+        try {
+          handLandmarkerRef.current.close();
+        } catch {}
+      }
     };
   }, []);
 
@@ -189,6 +237,7 @@ export default function useFaceTracking() {
     isLoading,
     error,
     rotationRef,
+    handsRef,
     videoRef,
     startTracking,
     stopTracking,
